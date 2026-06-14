@@ -188,9 +188,18 @@ optimization if re-index latency ever matters.)
 
 ### Renderer UI
 
-- **Sidebar:** project dropdown + "Add project" + a Rebuild action labeled per type
-  ("Pull latest" for GitHub, "Reindex" for local); a doc tree; a full-text search
-  box with snippet results.
+- **Top navigation bar:** a full-width bar across the top of the window (flush on the
+  chrome surface, hairline `--border` bottom). LEFT: the project selector dropdown +
+  "Add project", followed — when a Document is open — by a breadcrumb tail (muted `›`
+  separator + the current **Document Title**, i.e. Project context › Document Title).
+  RIGHT: a **Contents** button that toggles a popover mega-menu of the current
+  Document's headings (hidden when no Document is open or it has no headings), plus the
+  Settings (theme) trigger. Selecting a heading scrolls the Document to that anchor and
+  closes the menu; the jump re-fires even when re-selecting the same heading. The bar
+  lives in the chrome region (chrome `data-theme`).
+- **Sidebar:** holds the full-text search box (with snippet results) and the doc tree.
+  The project selector + Add moved up to the top navigation bar. (A Rebuild action
+  labeled per type — "Pull latest" for GitHub, "Reindex" for local — remains planned.)
 - **Doc tree:** raw folder mirror of the discovered Documents (no collapsing in v1).
   Each level is sorted **alphabetically by filename** so authors' numeric prefixes
   (`00-`, `01-`…) order naturally. Each Document is **labeled by its H1 title** when
@@ -335,6 +344,7 @@ doc-viewer/
     renderer/
       App.tsx
       components/
+        TopBar.tsx
         Sidebar.tsx
         DocTree.tsx
         SearchBox.tsx
