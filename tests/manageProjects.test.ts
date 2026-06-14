@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import ManageProjects, { type ManageProjectsProps } from '../src/renderer/src/components/ManageProjects'
-import type { BuildProgress, Project, ThemeChoice } from '../src/shared/types'
+import type { BuildProgress, Project } from '../src/shared/types'
 
 let container: HTMLDivElement
 let root: Root
@@ -79,37 +79,9 @@ async function renderManage(props: ManageProjectsProps): Promise<void> {
   })
 }
 
-async function setInput(input: HTMLInputElement, value: string): Promise<void> {
-  await act(async () => {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-    setter.call(input, value)
-    input.dispatchEvent(new window.Event('input', { bubbles: true }))
-  })
-}
-
-async function setSelect(select: HTMLSelectElement, value: string): Promise<void> {
-  await act(async () => {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')!.set!
-    setter.call(select, value)
-    select.dispatchEvent(new window.Event('change', { bubbles: true }))
-  })
-}
-
 async function click(el: Element): Promise<void> {
   await act(async () => {
     ;(el as HTMLElement).click()
-  })
-}
-
-async function key(input: HTMLInputElement, keyName: string): Promise<void> {
-  await act(async () => {
-    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: keyName, bubbles: true }))
-  })
-}
-
-async function blur(input: HTMLInputElement): Promise<void> {
-  await act(async () => {
-    input.dispatchEvent(new window.Event('focusout', { bubbles: true }))
   })
 }
 
@@ -118,30 +90,40 @@ function rowIds(): string[] {
 }
 
 describe('ManageProjects', () => {
-  it('renders project rows with chips, counts, controls, and truncated sources', async () => {
+  it('renders a slim row per project: name, source, chip, doc count, edit + delete icons', async () => {
     await renderManage(propsWith([localProject(), githubProject()]))
 
-    expect(container.querySelector('h2')?.textContent).toBe('Manage Projects')
-    expect((container.querySelector('[data-role="filter"]') as HTMLInputElement).placeholder).toBe('Filter projects…')
-
-    const sort = container.querySelector('[data-role="sort"]') as HTMLSelectElement
-    expect(Array.from(sort.options).map((option) => option.textContent)).toEqual([
-      'Sort: Name',
-      'Sort: Type',
-      'Sort: Recently built'
-    ])
+    expect(container.querySelector('h2')?.textContent).toBe('Projects')
 
     const localRow = container.querySelector('[data-row="local-1"]') as HTMLElement
     const githubRow = container.querySelector('[data-row="github-1"]') as HTMLElement
     expect(localRow).toBeTruthy()
     expect(githubRow).toBeTruthy()
+
+    // Doc count uses a uniform "N docs" label; GitHub uses the current ref's count (main = 4).
+    expect(localRow.querySelector('.project-count')?.textContent).toBe('7 docs')
+    expect(githubRow.querySelector('.project-count')?.textContent).toBe('4 docs')
+
     expect(localRow.querySelector('[data-chip]')?.textContent).toBe('local')
     expect(localRow.querySelector('[data-chip]')?.tagName).not.toBe('BUTTON')
-    expect(localRow.textContent).toContain('7 docs')
     expect(githubRow.querySelector('[data-chip]')?.textContent).toBe('github')
-    expect(githubRow.textContent).toContain('2 branches')
+
+    // Source is truncated but carries the full value in a title.
     expect(githubRow.querySelector('code')?.textContent).toContain('…')
     expect(githubRow.querySelector('code')?.getAttribute('title')).toBe(githubProject().source)
+
+    // Each row exposes an edit and a delete control; no inline theme/subpath/rename.
+    expect(localRow.querySelector('[data-action="edit"]')).toBeTruthy()
+    expect(localRow.querySelector('[data-action="delete"]')).toBeTruthy()
+    expect(localRow.querySelector('[data-role="theme-select"]')).toBeNull()
+    expect(localRow.querySelector('[data-action="rename"]')).toBeNull()
+    expect(container.querySelector('[data-role="filter"]')).toBeNull()
+    expect(container.querySelector('[data-role="sort"]')).toBeNull()
+  })
+
+  it('falls back to 0 docs when the current GitHub ref is uncached', async () => {
+    await renderManage(propsWith([githubProject({ currentRef: 'feature' })]))
+    expect(container.querySelector('[data-row="github-1"] .project-count')?.textContent).toBe('0 docs')
   })
 
   it('calls onSelect from the project name button', async () => {
@@ -163,134 +145,46 @@ describe('ManageProjects', () => {
     expect(addCount).toBe(1)
   })
 
-  it('commits a trimmed rename on Enter', async () => {
-    const renames: Array<[string, string]> = []
-    await renderManage(propsWith([localProject()], { onRename: (id, name) => renames.push([id, name]) }))
+  it('opens the edit modal for a project and closes it on cancel', async () => {
+    await renderManage(propsWith([githubProject()]))
 
-    await click(container.querySelector('[data-row="local-1"] [data-action="rename"]')!)
-    const input = container.querySelector('[data-row="local-1"] [data-field="rename"]') as HTMLInputElement
-    await setInput(input, '  Renamed Docs  ')
-    await key(input, 'Enter')
+    expect(container.querySelector('.edit-project-modal')).toBeNull()
+    await click(container.querySelector('[data-row="github-1"] [data-action="edit"]')!)
 
-    expect(renames).toEqual([['local-1', 'Renamed Docs']])
+    const modal = container.querySelector('.edit-project-modal') as HTMLElement
+    expect(modal).toBeTruthy()
+    expect((modal.querySelector('[data-field="name"]') as HTMLInputElement).value).toBe('Repo Docs')
+    expect(modal.querySelector('[data-role="theme-select"]')).toBeTruthy()
+    expect((modal.querySelector('[data-field="docsSubpath"]') as HTMLInputElement).value).toBe('docs')
+
+    await click(modal.querySelector('[data-action="cancel"]')!)
+    expect(container.querySelector('.edit-project-modal')).toBeNull()
   })
 
-  it('falls back to the prior name on blank rename without sending an empty update', async () => {
-    const renames: Array<[string, string]> = []
-    await renderManage(propsWith([localProject()], { onRename: (id, name) => renames.push([id, name]) }))
+  it('omits the docs subpath field for local projects', async () => {
+    await renderManage(propsWith([localProject()]))
 
-    await click(container.querySelector('[data-row="local-1"] [data-action="rename"]')!)
-    const input = container.querySelector('[data-row="local-1"] [data-field="rename"]') as HTMLInputElement
-    await setInput(input, '    ')
-    await blur(input)
-
-    expect(renames).toEqual([])
-    expect(container.querySelector('[data-row="local-1"]')?.textContent).toContain('Local Alpha')
+    await click(container.querySelector('[data-row="local-1"] [data-action="edit"]')!)
+    const modal = container.querySelector('.edit-project-modal') as HTMLElement
+    expect(modal.querySelector('[data-field="docsSubpath"]')).toBeNull()
   })
 
-  it('cancels rename on Escape', async () => {
-    const renames: Array<[string, string]> = []
-    await renderManage(propsWith([localProject()], { onRename: (id, name) => renames.push([id, name]) }))
-
-    await click(container.querySelector('[data-row="local-1"] [data-action="rename"]')!)
-    const input = container.querySelector('[data-row="local-1"] [data-field="rename"]') as HTMLInputElement
-    await setInput(input, 'Ignored')
-    await key(input, 'Escape')
-
-    expect(renames).toEqual([])
-    expect(container.querySelector('[data-row="local-1"] [data-field="rename"]')).toBeNull()
-  })
-
-  it('maps the Global theme option to an undefined project theme', async () => {
-    const themes: Array<[string, ThemeChoice | undefined]> = []
-    await renderManage(propsWith([localProject({ themeId: 'dark' })], {
-      onSetTheme: (id, theme) => themes.push([id, theme])
-    }))
-
-    await setSelect(container.querySelector('[data-row="local-1"] [data-role="theme-select"]') as HTMLSelectElement, '')
-
-    expect(themes).toEqual([['local-1', undefined]])
-  })
-
-  it('deletes only after inline confirmation', async () => {
+  it('deletes only after inline icon confirmation', async () => {
     const deleted: string[] = []
     await renderManage(propsWith([localProject()], { onDelete: (id) => deleted.push(id) }))
 
     await click(container.querySelector('[data-row="local-1"] [data-action="delete"]')!)
-    expect(container.querySelector('[data-row="local-1"]')?.textContent).toContain('Delete Local Alpha?')
-    const cancel = container.querySelector('[data-row="local-1"] [data-action="cancel-delete"]') as HTMLButtonElement
-    const confirm = container.querySelector('[data-row="local-1"] [data-action="confirm-delete"]') as HTMLButtonElement
-    expect(cancel.textContent).toBe('Cancel')
-    expect(confirm.textContent).toBe('Delete')
-    await click(cancel)
+    const row = container.querySelector('[data-row="local-1"]') as HTMLElement
+    expect(row.textContent).toContain('Delete?')
+    expect(row.querySelector('[data-action="cancel-delete"]')).toBeTruthy()
+
+    await click(row.querySelector('[data-action="cancel-delete"]')!)
     expect(deleted).toEqual([])
+    expect(container.querySelector('[data-row="local-1"] [data-action="edit"]')).toBeTruthy()
+
     await click(container.querySelector('[data-row="local-1"] [data-action="delete"]')!)
     await click(container.querySelector('[data-row="local-1"] [data-action="confirm-delete"]')!)
-
     expect(deleted).toEqual(['local-1'])
-  })
-
-  it('edits a GitHub docs subpath, keeps the field open while busy, and shows the zero-doc note', async () => {
-    const subpaths: Array<[string, string]> = []
-    let resolveSubpath!: (value: { docCount: number }) => void
-    const pending = new Promise<{ docCount: number }>((resolve) => {
-      resolveSubpath = resolve
-    })
-    await renderManage(propsWith([githubProject()], {
-      onSetDocsSubpath: async (id, subpath) => {
-        subpaths.push([id, subpath])
-        return pending
-      }
-    }))
-
-    await click(container.querySelector('[data-row="github-1"] [data-action="edit-subpath"]')!)
-    const input = container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]') as HTMLInputElement
-    expect(input.placeholder).toBe('docs subpath (e.g. docs)')
-    await setInput(input, '  guides  ')
-    await click(container.querySelector('[data-row="github-1"] [data-action="commit-subpath"]')!)
-
-    expect(subpaths).toEqual([['github-1', 'guides']])
-    expect((container.querySelector('[data-row="github-1"] [data-action="rename"]') as HTMLButtonElement).disabled).toBe(true)
-
-    await act(async () => {
-      resolveSubpath({ docCount: 0 })
-      await pending
-    })
-
-    expect(container.querySelector('[data-row="github-1"]')?.textContent).toContain('No docs found at that subpath.')
-    expect(container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]')).toBeTruthy()
-  })
-
-  it('does not render docs subpath controls for local projects', async () => {
-    await renderManage(propsWith([localProject()]))
-
-    expect(container.querySelector('[data-row="local-1"] [data-action="edit-subpath"]')).toBeNull()
-    expect(container.querySelector('[data-row="local-1"] [data-field="docsSubpath"]')).toBeNull()
-  })
-
-  it('shows distinct collision and generic docs subpath errors', async () => {
-    await renderManage(propsWith([githubProject()], {
-      onSetDocsSubpath: async (_id, subpath) => {
-        if (subpath === 'docs') {
-          const err = new Error('duplicate')
-          ;(err as Error & { code?: string }).code = 'collision'
-          throw err
-        }
-        throw new Error('network failed')
-      }
-    }))
-
-    await click(container.querySelector('[data-row="github-1"] [data-action="edit-subpath"]')!)
-    const input = container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]') as HTMLInputElement
-    await setInput(input, 'docs')
-    await click(container.querySelector('[data-row="github-1"] [data-action="commit-subpath"]')!)
-    expect(container.querySelector('[data-row="github-1"]')?.textContent).toContain('Another project already uses that repo + subpath.')
-    expect(container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]')).toBeTruthy()
-
-    await setInput(input, 'api')
-    await click(container.querySelector('[data-row="github-1"] [data-action="commit-subpath"]')!)
-    expect(container.querySelector('[data-row="github-1"]')?.textContent).toContain("Couldn't rebuild at that subpath.")
-    expect(container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]')).toBeTruthy()
   })
 
   it('disables row controls while building and shows streamed progress text', async () => {
@@ -298,9 +192,7 @@ describe('ManageProjects', () => {
 
     const row = container.querySelector('[data-row="github-1"]') as HTMLElement
     expect((row.querySelector('[data-action="select"]') as HTMLButtonElement).disabled).toBe(true)
-    expect((row.querySelector('[data-action="rename"]') as HTMLButtonElement).disabled).toBe(true)
-    expect((row.querySelector('[data-role="theme-select"]') as HTMLSelectElement).disabled).toBe(true)
-    expect((row.querySelector('[data-action="edit-subpath"]') as HTMLButtonElement).disabled).toBe(true)
+    expect((row.querySelector('[data-action="edit"]') as HTMLButtonElement).disabled).toBe(true)
     expect((row.querySelector('[data-action="delete"]') as HTMLButtonElement).disabled).toBe(true)
 
     await act(async () => {
@@ -316,50 +208,15 @@ describe('ManageProjects', () => {
     expect(row.textContent).toContain('Parsing streamed docs')
   })
 
-  it('filters projects case-insensitively and clears filtered-empty state', async () => {
-    await renderManage(propsWith([localProject(), githubProject()]))
-
-    await setInput(container.querySelector('[data-role="filter"]') as HTMLInputElement, 'repo')
-    expect(rowIds()).toEqual(['github-1'])
-
-    await setInput(container.querySelector('[data-role="filter"]') as HTMLInputElement, 'missing')
-    expect(container.textContent).toContain('No projects match "missing".')
-    await click(container.querySelector('[data-action="clear-filter"]')!)
-
-    expect((container.querySelector('[data-role="filter"]') as HTMLInputElement).value).toBe('')
-    expect(rowIds()).toEqual(['local-1', 'github-1'])
-  })
-
-  it('sorts by name by default, then type, then recently built', async () => {
+  it('sorts projects alphabetically by name', async () => {
     const projects = [
-      githubProject({
-        id: 'github-1',
-        name: 'Bravo Repo',
-        refs: [
-          { ref: 'main', lastBuiltAt: '2026-06-14T12:00:00.000Z', docCount: 3 },
-          { ref: 'old', lastBuiltAt: '2026-06-01T12:00:00.000Z', docCount: 1 }
-        ]
-      }),
-      localProject({
-        id: 'local-2',
-        name: 'Zulu Local',
-        lastBuiltAt: '2026-06-12T12:00:00.000Z'
-      }),
-      localProject({
-        id: 'local-1',
-        name: 'Alpha Local',
-        lastBuiltAt: '2026-06-10T12:00:00.000Z'
-      })
+      githubProject({ id: 'github-1', name: 'Bravo Repo' }),
+      localProject({ id: 'local-2', name: 'Zulu Local' }),
+      localProject({ id: 'local-1', name: 'Alpha Local' })
     ]
     await renderManage(propsWith(projects))
 
     expect(rowIds()).toEqual(['local-1', 'github-1', 'local-2'])
-
-    await setSelect(container.querySelector('[data-role="sort"]') as HTMLSelectElement, 'type')
-    expect(rowIds()).toEqual(['local-1', 'local-2', 'github-1'])
-
-    await setSelect(container.querySelector('[data-role="sort"]') as HTMLSelectElement, 'recent')
-    expect(rowIds()).toEqual(['github-1', 'local-2', 'local-1'])
   })
 
   it('calls onDone from the Done button', async () => {
@@ -369,20 +226,5 @@ describe('ManageProjects', () => {
     await click(container.querySelector('[data-action="done"]')!)
 
     expect(doneCount).toBe(1)
-  })
-
-  it('shows the 0-doc note when a subpath rebuild finds no docs', async () => {
-    await renderManage(propsWith([githubProject()], {
-      onSetDocsSubpath: async () => ({ docCount: 0 })
-    }))
-
-    await click(container.querySelector('[data-row="github-1"] [data-action="edit-subpath"]')!)
-    const input = container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]') as HTMLInputElement
-    await setInput(input, 'empty')
-    await click(container.querySelector('[data-row="github-1"] [data-action="commit-subpath"]')!)
-
-    expect(container.textContent).toContain('No docs found at that subpath.')
-    expect(container.textContent).not.toContain('Another project already uses')
-    expect(container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]')).toBeTruthy()
   })
 })

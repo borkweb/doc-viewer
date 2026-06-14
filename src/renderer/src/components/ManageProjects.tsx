@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { BuildProgress, Project, ThemeChoice } from '@shared/types'
+import EditProjectModal from './EditProjectModal'
 
 export interface ManageProjectsProps {
   projects: Project[]
@@ -11,15 +12,6 @@ export interface ManageProjectsProps {
   onAddProject: () => void
   onDone: () => void
 }
-
-type SortMode = 'name' | 'type' | 'recent'
-
-const THEME_OPTIONS: Array<{ value: '' | ThemeChoice; label: string }> = [
-  { value: '', label: 'Global' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' },
-  { value: 'system', label: 'System' }
-]
 
 const STAGE_LABEL: Record<BuildProgress['stage'], string> = {
   cloning: 'Cloning…',
@@ -33,7 +25,7 @@ const STAGE_LABEL: Record<BuildProgress['stage'], string> = {
   error: 'Error'
 }
 
-function middleTruncate(value: string, max = 44): string {
+function middleTruncate(value: string, max = 52): string {
   if (value.length <= max) return value
   const keep = Math.max(8, Math.floor((max - 1) / 2))
   return `${value.slice(0, keep)}…${value.slice(value.length - keep)}`
@@ -43,27 +35,16 @@ function compareName(a: Project, b: Project): number {
   return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
 }
 
-function lastBuiltTime(project: Project): number {
-  if (project.type === 'local') return Date.parse(project.lastBuiltAt ?? '') || 0
-  return Math.max(0, ...project.refs.map((ref) => Date.parse(ref.lastBuiltAt) || 0))
-}
-
-function isCollisionError(error: unknown): boolean {
-  const maybe = error as { code?: unknown; message?: unknown }
-  if (maybe.code === 'collision') return true
-  return typeof maybe.message === 'string' && maybe.message.toLowerCase().includes('collision')
+// Local projects carry a single docCount; GitHub projects cache one count per
+// ref, so report the currently-selected branch's count.
+function docCountOf(project: Project): number {
+  if (project.type === 'local') return project.docCount ?? 0
+  return project.refs.find((ref) => ref.ref === project.currentRef)?.docCount ?? 0
 }
 
 export default function ManageProjects(props: ManageProjectsProps): React.JSX.Element {
-  const [filter, setFilter] = useState('')
-  const [sort, setSort] = useState<SortMode>('name')
-  const [renameId, setRenameId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [subpathId, setSubpathId] = useState<string | null>(null)
-  const [subpathValue, setSubpathValue] = useState('')
-  const [subpathBusyId, setSubpathBusyId] = useState<string | null>(null)
-  const [subpathMessages, setSubpathMessages] = useState<Record<string, string>>({})
   const [progressByProject, setProgressByProject] = useState<Record<string, BuildProgress>>({})
 
   useEffect(() => {
@@ -76,262 +57,117 @@ export default function ManageProjects(props: ManageProjectsProps): React.JSX.El
     return unsub
   }, [])
 
-  const rows = useMemo(() => {
-    const query = filter.trim().toLowerCase()
-    return props.projects
-      .filter((project) => {
-        if (!query) return true
-        return `${project.name} ${project.source}`.toLowerCase().includes(query)
-      })
-      .toSorted((a, b) => {
-        if (sort === 'type') {
-          if (a.type !== b.type) return a.type === 'local' ? -1 : 1
-          return compareName(a, b)
-        }
-        if (sort === 'recent') {
-          const diff = lastBuiltTime(b) - lastBuiltTime(a)
-          return diff || compareName(a, b)
-        }
-        return compareName(a, b)
-      })
-  }, [filter, props.projects, sort])
-
-  const startRename = (project: Project): void => {
-    setRenameId(project.id)
-    setRenameValue(project.name)
-    setDeleteId(null)
-  }
-
-  const commitRename = (project: Project): void => {
-    const nextName = renameValue.trim()
-    setRenameId(null)
-    if (!nextName || nextName === project.name) return
-    props.onRename(project.id, nextName)
-  }
-
-  const cancelRename = (): void => {
-    setRenameId(null)
-    setRenameValue('')
-  }
-
-  const startSubpath = (project: Project): void => {
-    if (project.type !== 'github') return
-    setSubpathId(project.id)
-    setSubpathValue(project.docsSubpath ?? '')
-    setSubpathMessages((current) => {
-      const next = { ...current }
-      delete next[project.id]
-      return next
-    })
-    setDeleteId(null)
-  }
-
-  const commitSubpath = async (project: Project): Promise<void> => {
-    if (project.type !== 'github' || subpathBusyId) return
-    const nextSubpath = subpathValue.trim()
-    setSubpathBusyId(project.id)
-    setSubpathMessages((current) => {
-      const next = { ...current }
-      delete next[project.id]
-      return next
-    })
-    try {
-      const result = await props.onSetDocsSubpath(project.id, nextSubpath)
-      if (result.docCount > 0) setSubpathId(null)
-      setSubpathMessages((current) => {
-        const next = { ...current }
-        if (result.docCount === 0) next[project.id] = 'No docs found at that subpath.'
-        else delete next[project.id]
-        return next
-      })
-    } catch (error) {
-      setSubpathMessages((current) => ({
-        ...current,
-        [project.id]: isCollisionError(error)
-          ? 'Another project already uses that repo + subpath.'
-          : "Couldn't rebuild at that subpath."
-      }))
-    } finally {
-      setSubpathBusyId(null)
-    }
-  }
-
-  const clearFilter = (): void => setFilter('')
+  const rows = useMemo(() => props.projects.toSorted(compareName), [props.projects])
+  const editingProject = editId ? props.projects.find((project) => project.id === editId) ?? null : null
 
   return (
     <section className="manage-projects">
       <header className="manage-projects-header">
-        <h2>Manage Projects</h2>
-        <button data-action="done" onClick={props.onDone}>Done</button>
+        <h2>Projects</h2>
+        <div className="manage-projects-header-actions">
+          <button data-action="add-project" className="topbar-button active" onClick={props.onAddProject}>
+            <i className="fa-solid fa-plus" aria-hidden="true" /> Add project
+          </button>
+          <button data-action="done" className="topbar-button" onClick={props.onDone}>Done</button>
+        </div>
       </header>
-
-      <div className="manage-projects-toolbar">
-        <input
-          data-role="filter"
-          placeholder="Filter projects…"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-        <select
-          data-role="sort"
-          value={sort}
-          onChange={(event) => setSort(event.target.value as SortMode)}
-        >
-          <option value="name">Sort: Name</option>
-          <option value="type">Sort: Type</option>
-          <option value="recent">Sort: Recently built</option>
-        </select>
-      </div>
 
       {props.projects.length === 0 ? (
         <div className="empty-state">
+          <i className="empty-icon fa-solid fa-folder-open" aria-hidden="true" />
           <p>No projects yet — add one to get started.</p>
-          <button data-action="add-project" onClick={props.onAddProject}>Add project</button>
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="empty-state">
-          <p>No projects match "{filter}".</p>
-          <button data-action="clear-filter" onClick={clearFilter}>Clear filter</button>
+          <button data-action="add-project" className="topbar-button active" onClick={props.onAddProject}>
+            Add project
+          </button>
         </div>
       ) : (
-        <div className="manage-projects-list">
+        <ul className="project-list">
           {rows.map((project) => {
-            const editingRename = renameId === project.id
-            const editingSubpath = subpathId === project.id
-            const confirmingDelete = deleteId === project.id
-            const busy = subpathBusyId === project.id
-            const disabled = project.status === 'building' || busy
+            const building = project.status === 'building'
             const progress = progressByProject[project.id]
-            const progressText = progress?.message ?? (progress ? STAGE_LABEL[progress.stage] : null)
+            const progressText = building
+              ? progress?.message ?? (progress ? STAGE_LABEL[progress.stage] : 'Building…')
+              : null
+            const confirmingDelete = deleteId === project.id
 
             return (
-              <article className="manage-project-row" data-row={project.id} key={project.id}>
-                <div className="manage-project-primary">
-                  {editingRename ? (
-                    <input
-                      data-field="rename"
-                      value={renameValue}
-                      onChange={(event) => setRenameValue(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') commitRename(project)
-                        if (event.key === 'Escape') cancelRename()
-                      }}
-                      onBlur={() => commitRename(project)}
-                      disabled={disabled}
-                      autoFocus
-                    />
-                  ) : (
-                    <button
-                      data-action="select"
-                      onClick={() => props.onSelect(project.id)}
-                      disabled={disabled}
-                    >
-                      {project.name}
-                    </button>
-                  )}
-                  <code className="mono project-source" title={project.source}>
-                    {middleTruncate(project.source)}
-                  </code>
-                  <span data-chip>{project.type}</span>
-                  <span className="project-count">
-                    {project.type === 'local'
-                      ? `${project.docCount ?? 0} docs`
-                      : `${project.refs.length} branches`}
-                  </span>
-                </div>
+              <li className="project-item" data-row={project.id} key={project.id}>
+                <button
+                  className="project-name"
+                  data-action="select"
+                  onClick={() => props.onSelect(project.id)}
+                  disabled={building}
+                >
+                  {project.name}
+                </button>
+                <code className="project-source" title={project.source}>
+                  {middleTruncate(project.source)}
+                </code>
+                <span data-chip>{project.type}</span>
+                <span className="project-count">{docCountOf(project)} docs</span>
 
-                <div className="manage-project-actions">
-                  <button
-                    data-action="rename"
-                    onClick={() => startRename(project)}
-                    disabled={disabled}
-                  >
-                    Rename
-                  </button>
-                  <select
-                    data-role="theme-select"
-                    value={project.themeId ?? ''}
-                    onChange={(event) => {
-                      const value = event.target.value
-                      props.onSetTheme(project.id, value ? (value as ThemeChoice) : undefined)
-                    }}
-                    disabled={disabled}
-                  >
-                    {THEME_OPTIONS.map((option) => (
-                      <option key={option.value || 'global'} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
+                {progressText && (
+                  <span className="project-status" role="status">{progressText}</span>
+                )}
 
-                  {project.type === 'github' && (
-                    editingSubpath ? (
-                      <span className="docs-subpath-edit">
-                        <input
-                          data-field="docsSubpath"
-                          placeholder="docs subpath (e.g. docs)"
-                          value={subpathValue}
-                          onChange={(event) => setSubpathValue(event.target.value)}
-                          disabled={disabled}
-                        />
-                        <button
-                          data-action="commit-subpath"
-                          onClick={() => { void commitSubpath(project) }}
-                          disabled={disabled}
-                        >
-                          Commit
-                        </button>
-                      </span>
-                    ) : (
-                      <button
-                        data-action="edit-subpath"
-                        onClick={() => startSubpath(project)}
-                        disabled={disabled}
-                      >
-                        Edit subpath
-                      </button>
-                    )
-                  )}
-
+                <div className="project-actions">
                   {confirmingDelete ? (
                     <span className="delete-confirmation">
-                      <span>Delete {project.name}?</span>
+                      <span>Delete?</span>
                       <button
                         data-action="cancel-delete"
+                        className="icon-button"
+                        aria-label="Cancel delete"
                         onClick={() => setDeleteId(null)}
-                        disabled={disabled}
                       >
-                        Cancel
+                        <i className="fa-solid fa-xmark" aria-hidden="true" />
                       </button>
                       <button
                         data-action="confirm-delete"
+                        className="icon-button danger"
+                        aria-label={`Confirm delete ${project.name}`}
                         onClick={() => props.onDelete(project.id)}
-                        disabled={disabled}
                       >
-                        Delete
+                        <i className="fa-solid fa-check" aria-hidden="true" />
                       </button>
                     </span>
                   ) : (
-                    <button
-                      data-action="delete"
-                      onClick={() => {
-                        setDeleteId(project.id)
-                        setRenameId(null)
-                      }}
-                      disabled={disabled}
-                    >
-                      Delete
-                    </button>
+                    <>
+                      <button
+                        data-action="edit"
+                        className="icon-button"
+                        aria-label={`Edit ${project.name}`}
+                        onClick={() => setEditId(project.id)}
+                        disabled={building}
+                      >
+                        <i className="fa-solid fa-pen-to-square" aria-hidden="true" />
+                      </button>
+                      <button
+                        data-action="delete"
+                        className="icon-button danger"
+                        aria-label={`Delete ${project.name}`}
+                        onClick={() => setDeleteId(project.id)}
+                        disabled={building}
+                      >
+                        <i className="fa-solid fa-trash-can" aria-hidden="true" />
+                      </button>
+                    </>
                   )}
                 </div>
-
-                {(progressText || subpathMessages[project.id]) && (
-                  <p className="project-status" role="status">
-                    {progressText ?? subpathMessages[project.id]}
-                  </p>
-                )}
-              </article>
+              </li>
             )
           })}
-        </div>
+        </ul>
+      )}
+
+      {editingProject && (
+        <EditProjectModal
+          project={editingProject}
+          onRename={props.onRename}
+          onSetTheme={props.onSetTheme}
+          onSetDocsSubpath={props.onSetDocsSubpath}
+          onClose={() => setEditId(null)}
+        />
       )}
     </section>
   )
