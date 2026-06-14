@@ -1,0 +1,147 @@
+/* ── Cobalt Reader · Color tokens ──────────────────────────────────────────
+   A cobalt theme with two modes. DARK is the default and the brand's hero look
+   (deep cobalt-black, slate chrome). LIGHT is an opt-in cobalt-tinted day mode.
+
+   Base palette (raw brand hues) is mode-independent and lives in :root.
+   Semantic aliases — the things components compose — are defined per mode:
+     • :root and [data-theme="dark"]  → dark values
+     • [data-theme="light"]           → light values
+   Toggle by setting data-theme on <html>:  document.documentElement.dataset.theme = 'light'
+   (Leave it unset for the dark default. Consumers wanting OS-driven switching
+   can add their own  @media (prefers-color-scheme: light){ :root:not([data-theme]){…} }.) */
+
+:root {
+  /* ── Base palette (mode-independent brand hues) ─────────────────────── */
+  /* Primary — electric cobalt blue */
+  --primary-light: #7BBDFF;
+  --primary: #4A9EFF;
+  --primary-dark: #1A7FE8;
+
+  /* Secondary — slate */
+  --slate-light: #2A3F54;
+  --slate: #1C2B3A;
+  --slate-dark: #111D28;
+
+  /* Accent — electric cyan */
+  --cyan-light: #88DCFF;
+  --cyan: #56CCF2;
+  --cyan-dark: #2BB5E0;
+
+  /* Foundation */
+  --cobalt-black: #0A0F1E;
+  --ink: #F0F4FF;
+  --ink-muted: #6B7FA8;
+
+  /* Status hues */
+  --green: #34D399;
+  --amber: #F5B14C;
+  --red: #FF6B6B;
+}
+
+/* ── DARK theme — the default. Lives in :root, which always matches <html>
+   (so an explicit data-theme="dark" just leaves these values in force; the
+   light rule below simply doesn't match). ─────────────────────────────────── */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces & ink */
+  --bg: var(--cobalt-black);            /* content / reading background */
+  --surface: var(--slate-dark);         /* sidebar, chrome panels */
+  --surface-alt: var(--slate);          /* hovered/raised chrome, table head */
+  --surface-raised: var(--slate-light); /* popovers, menus, floating */
+  --fg: var(--ink);                     /* primary text */
+  --muted: var(--ink-muted);            /* secondary text, labels, metadata */
+  --border: #243750;                    /* hairlines, dividers */
+  --border-strong: var(--slate-light);  /* input borders, stronger dividers */
+  --desk: #05080f;                      /* deep area behind app windows */
+  --faint: var(--slate-light);          /* low-emphasis decoration (empty-state icons) */
+  --scrollbar-thumb: var(--slate-light);
+  --scrollbar-thumb-hover: #36506e;
+
+  /* The single interactive accent */
+  --accent: var(--primary);
+  --accent-hover: var(--primary-light);
+  --accent-active: var(--primary-dark);
+  --accent-soft: rgb(74 158 255 / 14%);
+  --accent-ring: rgb(74 158 255 / 45%);
+
+  /* Electric cyan highlight — use sparingly */
+  --highlight: var(--cyan);
+  --highlight-soft: rgb(86 204 242 / 16%);
+
+  /* Status */
+  --success: var(--green);
+  --success-soft: rgb(52 211 153 / 15%);
+  --warning: var(--amber);
+  --warning-soft: rgb(245 177 76 / 15%);
+  --error: var(--red);
+  --error-soft: rgb(255 107 107 / 14%);
+
+  /* Component surfaces (doc rendering) */
+  --code-bg: #0E1A2D;
+  --code-fg: #D6E4FF;
+  --table-head: var(--slate);
+  --diagram-bg: var(--slate-dark);
+  --diagram-ink: var(--ink);
+  --mark-bg: rgb(86 204 242 / 22%);
+
+  /* Mode-dependent elevation — dark needs deeper shadow, blue glow */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow: 0 2px 6px rgb(0 0 0 / 35%), 0 8px 24px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 8px 28px rgb(0 0 0 / 45%), 0 24px 64px rgb(0 0 0 / 55%);
+  --glow-accent: 0 0 0 1px rgb(74 158 255 / 35%), 0 4px 18px rgb(74 158 255 / 28%);
+  --glow-cyan: 0 0 18px rgb(86 204 242 / 30%);
+}
+
+/* ── LIGHT theme — opt-in [data-theme="light"] ──────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces & ink — cobalt-tinted day mode */
+  --bg: #FFFFFF;
+  --surface: #EFF3FB;        /* chrome panels — faint cobalt-gray */
+  --surface-alt: #E4EBF6;    /* hovered/raised chrome, table head */
+  --surface-raised: #FFFFFF; /* popovers, menus, floating */
+  --fg: #14233A;             /* deep slate ink */
+  --muted: #5C7090;          /* secondary text, labels, metadata */
+  --border: #DCE4F0;         /* hairlines, dividers */
+  --border-strong: #C4D0E2;  /* input borders, stronger dividers */
+  --desk: #DDE5F1;           /* light area behind app windows */
+  --faint: #B9C6DA;          /* low-emphasis decoration */
+  --scrollbar-thumb: #C4D0E2;
+  --scrollbar-thumb-hover: #A9B8D0;
+
+  /* Accent — use the deeper cobalt for contrast on white */
+  --accent: var(--primary-dark);
+  --accent-hover: #1565C8;
+  --accent-active: #0F4FA0;
+  --accent-soft: rgb(26 127 232 / 10%);
+  --accent-ring: rgb(26 127 232 / 35%);
+
+  /* Cyan highlight — deepen for legibility on light */
+  --highlight: var(--cyan-dark);
+  --highlight-soft: rgb(43 181 224 / 16%);
+
+  /* Status — darkened so they read on white */
+  --success: #1A9E6A;
+  --success-soft: rgb(26 158 106 / 14%);
+  --warning: #C77F1A;
+  --warning-soft: rgb(199 127 26 / 14%);
+  --error: #DC3B3E;
+  --error-soft: rgb(220 59 62 / 12%);
+
+  /* Component surfaces (doc rendering) */
+  --code-bg: #F3F6FC;
+  --code-fg: #1B2D49;
+  --table-head: #EFF3FB;
+  --diagram-bg: #FFFFFF;
+  --diagram-ink: #14233A;
+  --mark-bg: rgb(43 181 224 / 28%);
+
+  /* Mode-dependent elevation — light needs soft, cool-gray shadow */
+  --shadow-sm: 0 1px 2px rgb(20 35 58 / 8%);
+  --shadow: 0 2px 6px rgb(20 35 58 / 8%), 0 8px 24px rgb(20 35 58 / 10%);
+  --shadow-lg: 0 8px 28px rgb(20 35 58 / 12%), 0 24px 64px rgb(20 35 58 / 16%);
+  --glow-accent: 0 0 0 1px rgb(26 127 232 / 30%), 0 4px 18px rgb(26 127 232 / 22%);
+  --glow-cyan: 0 0 18px rgb(43 181 224 / 26%);
+}

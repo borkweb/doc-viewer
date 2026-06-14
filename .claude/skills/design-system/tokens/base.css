@@ -1,0 +1,67 @@
+/* ── Cobalt Reader · Base element styles ───────────────────────────────────
+   The applied look, composed entirely from tokens. Mirrors Doc Viewer's
+   renderer styles, re-skinned for the cobalt dark theme. Consumers get a
+   correctly-themed document body for free by linking styles.css. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: var(--text-ui)/var(--leading-ui) var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Selection picks up the cyan highlight */
+::selection { background: var(--highlight-soft); color: var(--fg); }
+
+/* Scrollbars in the cobalt key */
+* { scrollbar-color: var(--scrollbar-thumb) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb); border-radius: var(--radius-full);
+  border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+/* ── Long-form document typography ──────────────────────────────────────── */
+.cobalt-doc {
+  font-size: var(--text-doc);
+  line-height: var(--leading-doc);
+  color: var(--fg);
+  max-width: var(--content-w);
+}
+.cobalt-doc h1, .cobalt-doc h2, .cobalt-doc h3,
+.cobalt-doc h4 { line-height: var(--leading-snug); scroll-margin-top: var(--space-4);
+  color: var(--fg); font-weight: var(--weight-semibold); }
+.cobalt-doc h1 { font-size: var(--text-3xl); letter-spacing: -0.01em; margin: 0 0 var(--space-5); }
+.cobalt-doc h2 { font-size: var(--text-xl); margin: var(--space-10) 0 var(--space-4);
+  padding-bottom: var(--space-2); border-bottom: 1px solid var(--border); }
+.cobalt-doc h3 { font-size: var(--text-lg); margin: var(--space-8) 0 var(--space-3); }
+.cobalt-doc p, .cobalt-doc li { color: var(--fg); }
+.cobalt-doc a { color: var(--accent); text-decoration: none; }
+.cobalt-doc a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+.cobalt-doc pre {
+  background: var(--code-bg); color: var(--code-fg);
+  padding: var(--space-4) var(--space-4); border-radius: var(--radius-lg);
+  border: 1px solid var(--border); overflow-x: auto;
+  font-family: var(--font-mono); font-size: 0.86em; }
+.cobalt-doc code {
+  font-family: var(--font-mono); font-size: 0.86em; color: var(--code-fg);
+  background: var(--code-bg); padding: 0.15em 0.4em; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); }
+.cobalt-doc pre code { background: none; padding: 0; border: 0; }
+
+.cobalt-doc table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+.cobalt-doc th, .cobalt-doc td { border: 1px solid var(--border); padding: var(--space-2) var(--space-3); text-align: left; }
+.cobalt-doc th { background: var(--table-head); font-weight: var(--weight-semibold); }
+
+.cobalt-doc blockquote {
+  margin: 1em 0; padding: var(--space-2) var(--space-4);
+  border-left: 3px solid var(--accent); background: var(--accent-soft);
+  border-radius: 0 var(--radius) var(--radius) 0; color: var(--muted); }
+
+.cobalt-doc mark { background: var(--mark-bg); color: var(--fg); border-radius: 2px; padding: 0 2px; }
+.cobalt-doc hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-8) 0; }

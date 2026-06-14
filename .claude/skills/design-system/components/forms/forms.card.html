@@ -1,0 +1,53 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Buttons & Inputs" subtitle="Button, IconButton, Input, Select — variants & states" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { padding: 24px; }
+  .grp { display: flex; flex-direction: column; gap: 18px; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .lbl { font-size: var(--text-label); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--muted); width: 100%; }
+  .field { width: 220px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Button, IconButton, Input, Select } = window.CobaltReaderDesignSystem_feb28f
+  function Demo() {
+    return (
+      <div className="grp">
+        <div className="row">
+          <Button variant="primary" icon="fa-solid fa-rotate">Pull latest</Button>
+          <Button variant="secondary">Reindex</Button>
+          <Button variant="ghost" icon="fa-solid fa-gear">Settings</Button>
+          <Button variant="danger" icon="fa-solid fa-trash">Remove</Button>
+          <Button variant="primary" disabled>Disabled</Button>
+        </div>
+        <div className="row">
+          <Button size="sm" variant="secondary">Small</Button>
+          <Button size="md" variant="secondary">Medium</Button>
+          <Button size="lg" variant="secondary">Large</Button>
+          <IconButton icon="fa-solid fa-plus" label="Add" />
+          <IconButton icon="fa-solid fa-list-tree" label="Tree" active />
+          <IconButton icon="fa-solid fa-magnifying-glass" label="Search" />
+        </div>
+        <div className="row">
+          <div className="field"><Input icon="fa-solid fa-magnifying-glass" type="search" placeholder="Search docs…" flush /></div>
+          <div className="field"><Input placeholder="Project name" /></div>
+          <div className="field"><Select flush placeholder="Select a project…" options={[{value:'1',label:'Doc Viewer'},{value:'2',label:'React docs'}]} /></div>
+        </div>
+      </div>
+    )
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />)
+</script>
+</body>
+</html>

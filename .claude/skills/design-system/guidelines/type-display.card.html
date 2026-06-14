@@ -1,0 +1,22 @@
+<!-- @dsCard group="Type" viewport="700x300" name="Display Scale" subtitle="System UI font — headings & marketing sizes" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 22px 24px; }
+  .line { display: flex; align-items: baseline; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .line:last-child { border-bottom: 0; }
+  .tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); width: 132px; flex: none; }
+  .spec { color: var(--fg); font-family: var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+  <div class="line"><span class="tag">--text-3xl · 700</span><span class="spec" style="font-size:var(--text-3xl);font-weight:700;letter-spacing:-.01em">Cobalt Reader</span></div>
+  <div class="line"><span class="tag">--text-2xl · 600</span><span class="spec" style="font-size:var(--text-2xl);font-weight:600">Documentation, in focus</span></div>
+  <div class="line"><span class="tag">--text-xl · 600</span><span class="spec" style="font-size:var(--text-xl);font-weight:600">Section heading</span></div>
+  <div class="line"><span class="tag">--text-lg · 600</span><span class="spec" style="font-size:var(--text-lg);font-weight:600">Subsection heading</span></div>
+  <div class="line"><span class="tag">--text-md · 400</span><span class="spec" style="font-size:var(--text-md)">Lead paragraph and intros</span></div>
+</body>
+</html>

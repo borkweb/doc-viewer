@@ -1,0 +1,46 @@
+/* ── Cobalt Reader · Typography tokens ─────────────────────────────────────
+   Native system UI font for chrome (faithful to Doc Viewer), JetBrains Mono
+   for code to deliver the documented IDE feel. Two density registers: dense
+   chrome vs. comfortable long-form reading. */
+
+:root {
+  /* Families */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* Chrome register — dense (sidebar, tree, results, controls) */
+  --text-ui: 13px;
+  --leading-ui: 1.54;        /* ~20px on 13px */
+
+  /* Document register — readable long-form body */
+  --text-doc: 15px;
+  --leading-doc: 1.65;
+
+  /* Labels — uppercase section headers (folder rows, eyebrows) */
+  --text-label: 11px;
+  --tracking-label: 0.06em;
+
+  /* Display scale — for doc headings, marketing, slides */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
+  --text-4xl: 48px;
+  --text-5xl: 64px;
+
+  /* Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Heading leading */
+  --leading-tight: 1.15;
+  --leading-snug: 1.25;
+}

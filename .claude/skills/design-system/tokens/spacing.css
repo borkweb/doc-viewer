@@ -1,0 +1,38 @@
+/* ── Cobalt Reader · Spacing, geometry, elevation & motion ─────────────────
+   A 4px rhythm. Compact radii for chrome, larger for code/cards. Shadows are
+   deeper than a light theme needs — dark surfaces require more lift, plus a
+   subtle cobalt glow on the primary accent for the IDE feel. */
+
+:root {
+  /* 4px spacing grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radii */
+  --radius-sm: 3px;    /* inputs, buttons, chips */
+  --radius: 6px;       /* chrome panels, rows */
+  --radius-lg: 10px;   /* code blocks, cards, diagrams */
+  --radius-xl: 16px;   /* large feature cards, modals */
+  --radius-full: 999px;
+
+  /* Layout */
+  --sidebar-w: 264px;
+  --content-w: 860px;
+
+  /* Elevation & accent-glow tokens are MODE-DEPENDENT and defined per theme
+     in tokens/colors.css (--shadow-sm/--shadow/--shadow-lg, --glow-accent,
+     --glow-cyan) so they adapt to light vs dark. */
+
+  /* Motion — quick, subtle, never bouncy */
+  --transition: 120ms ease;        /* @kind other */
+  --transition-slow: 220ms ease;   /* @kind other */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* @kind other */
+}

@@ -1,0 +1,22 @@
+<!-- @dsCard group="Spacing" viewport="700x200" name="Elevation & Glow" subtitle="Deep shadows for dark surfaces + the cobalt accent glow" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 28px 24px; display: flex; gap: 26px; align-items: center; }
+  .item { text-align: center; }
+  .box { width: 120px; height: 78px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--text-sm); }
+  .glow { background: var(--accent); color: #fff; border-color: transparent; font-weight: var(--weight-semibold); }
+  .name { font-size: var(--text-sm); color: var(--fg); margin-top: 12px; font-weight: var(--weight-medium); }
+  .val { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+  <div class="item"><div class="box">flat</div><div class="name">Default</div><div class="val">no shadow</div></div>
+  <div class="item"><div class="box" style="box-shadow:var(--shadow)">raised</div><div class="name">--shadow</div><div class="val">cards · popovers</div></div>
+  <div class="item"><div class="box" style="box-shadow:var(--shadow-lg)">floating</div><div class="name">--shadow-lg</div><div class="val">modals</div></div>
+  <div class="item"><div class="box glow" style="box-shadow:var(--glow-accent)">CTA</div><div class="name">--glow-accent</div><div class="val">primary hover</div></div>
+</body>
+</html>

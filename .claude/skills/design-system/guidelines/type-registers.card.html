@@ -1,0 +1,28 @@
+<!-- @dsCard group="Type" viewport="700x230" name="Reading vs Chrome" subtitle="Two density registers: long-form body vs dense chrome" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 22px 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  .col h4 { margin: 0 0 4px; font-size: var(--text-label); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--muted); }
+  .col .meta { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-bottom: 10px; }
+  .doc { font-size: var(--text-doc); line-height: var(--leading-doc); color: var(--fg); }
+  .chrome { font-size: var(--text-ui); line-height: var(--leading-ui); color: var(--fg); }
+  .chrome .lbl { color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="col">
+    <h4>Document body</h4>
+    <div class="meta">--text-doc 15px / 1.65</div>
+    <p class="doc">A Document is split into one or more Sections at heading boundaries. Content stays comfortable for sustained reading.</p>
+  </div>
+  <div class="col">
+    <h4>Chrome</h4>
+    <div class="meta">--text-ui 13px / 1.54</div>
+    <p class="chrome"><span class="lbl">PROJECT</span><br/>Doc Viewer · 18 documents<br/>Search docs… · Pull latest · Reindex</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!-- @dsCard group="Colors" viewport="700x230" name="Light & Dark" subtitle="The same surface in both modes — dark is the default, light is opt-in" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+<style>
+  body { margin: 0; padding: 20px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .mode { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  .mode .bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .mode .tag { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--muted); font-weight: 600; }
+  .mode .pill { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 3px 8px; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent); font-size: var(--text-xs); font-weight: 600; }
+  .mode .body { padding: 14px 14px 16px; }
+  .mode h4 { margin: 0 0 6px; font-size: var(--text-md); color: var(--fg); }
+  .mode p { margin: 0 0 10px; font-size: var(--text-sm); color: var(--muted); line-height: 1.55; }
+  .mode a { color: var(--accent); } .mode mark { background: var(--mark-bg); color: var(--fg); padding: 0 2px; border-radius: 2px; }
+  .mode .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-sm); background: var(--accent); color: #fff; font-size: var(--text-sm); font-weight: 500; }
+  .mode code { font-family: var(--font-mono); font-size: 11px; background: var(--code-bg); border: 1px solid var(--border); color: var(--code-fg); padding: 1px 5px; border-radius: var(--radius-sm); }
+</style>
+</head>
+<body>
+  <div class="pair">
+    <div class="mode" data-theme="dark">
+      <div class="bar"><span class="tag">Dark · default</span><span class="pill"><i class="fa-solid fa-moon"></i> data-theme="dark"</span></div>
+      <div class="body">
+        <h4>Domain model</h4>
+        <p>A <mark>Project</mark> surfaces Documents. Run <code>Reindex</code> to rebuild.</p>
+        <span class="btn"><i class="fa-solid fa-rotate"></i> Pull latest</span>
+      </div>
+    </div>
+    <div class="mode" data-theme="light">
+      <div class="bar"><span class="tag">Light · opt-in</span><span class="pill"><i class="fa-solid fa-sun"></i> data-theme="light"</span></div>
+      <div class="body">
+        <h4>Domain model</h4>
+        <p>A <mark>Project</mark> surfaces Documents. Run <code>Reindex</code> to rebuild.</p>
+        <span class="btn"><i class="fa-solid fa-rotate"></i> Pull latest</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

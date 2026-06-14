@@ -1,0 +1,12 @@
+/* Cobalt Reader — design system entry point.
+   A rich cobalt + slate dark theme for Doc Viewer, with electric blue and
+   cyan highlights and an IDE-like feel for technical documentation.
+
+   This file is a manifest of @imports ONLY. All real declarations live in the
+   imported token + font files. Consumers link this one file. */
+
+@import url("tokens/fonts.css");
+@import url("tokens/colors.css");
+@import url("tokens/typography.css");
+@import url("tokens/spacing.css");
+@import url("tokens/base.css");

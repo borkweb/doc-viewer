@@ -1,0 +1,37 @@
+<!-- @dsCard group="Colors" viewport="700x200" name="Theme in Context" subtitle="How the palette assembles into the reading surface" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+<style>
+  body { margin: 0; padding: 20px; }
+  .frame { display: grid; grid-template-columns: 180px 1fr; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; height: 158px; }
+  .side { background: var(--surface); border-right: 1px solid var(--border); padding: 10px; }
+  .pill { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--radius); font-size: var(--text-sm); color: var(--fg); }
+  .pill i { color: var(--muted); font-size: 12px; width: 14px; text-align: center; }
+  .pill.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .pill.active i { color: var(--accent); }
+  .body { background: var(--bg); padding: 16px 18px; }
+  .body h3 { margin: 0 0 8px; font-size: var(--text-lg); color: var(--fg); }
+  .body p { margin: 0 0 10px; font-size: var(--text-base); color: var(--muted); line-height: 1.6; }
+  .body a { color: var(--accent); } .body mark { background: var(--mark-bg); color: var(--fg); padding: 0 2px; border-radius: 2px; }
+  .body code { font-family: var(--font-mono); background: var(--code-bg); border: 1px solid var(--border); color: var(--code-fg); font-size: 12px; padding: 1px 5px; border-radius: var(--radius-sm); }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="side">
+      <div class="pill"><i class="fa-solid fa-file-lines"></i> Overview</div>
+      <div class="pill active"><i class="fa-solid fa-file-lines"></i> Domain model</div>
+      <div class="pill"><i class="fa-solid fa-folder"></i> adr</div>
+    </div>
+    <div class="body">
+      <h3>Domain model</h3>
+      <p>A <mark>Project</mark> surfaces zero or more Documents. Each is split into <a href="#">Sections</a> at heading boundaries.</p>
+      <p>Run <code>Reindex</code> to rebuild the nav tree.</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Radii" subtitle="Compact for chrome, larger for code & cards" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 22px 24px; display: flex; gap: 22px; }
+  .item { text-align: center; }
+  .box { width: 92px; height: 80px; background: var(--surface-alt); border: 1px solid var(--border-strong); }
+  .name { font-size: var(--text-sm); color: var(--fg); margin-top: 9px; font-weight: var(--weight-medium); }
+  .val { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 1px; }
+</style>
+</head>
+<body>
+  <div class="item"><div class="box" style="border-radius:var(--radius-sm)"></div><div class="name">sm</div><div class="val">3px · inputs</div></div>
+  <div class="item"><div class="box" style="border-radius:var(--radius)"></div><div class="name">base</div><div class="val">6px · rows</div></div>
+  <div class="item"><div class="box" style="border-radius:var(--radius-lg)"></div><div class="name">lg</div><div class="val">10px · cards</div></div>
+  <div class="item"><div class="box" style="border-radius:var(--radius-xl)"></div><div class="name">xl</div><div class="val">16px · modals</div></div>
+  <div class="item"><div class="box" style="border-radius:var(--radius-full);width:80px"></div><div class="name">full</div><div class="val">pills</div></div>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!-- @dsCard group="Brand" viewport="700x180" name="Iconography · Font Awesome" subtitle="Solid 6.x, single-weight, muted at rest / accent when active" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+<style>
+  body { margin: 0; padding: 22px 24px; }
+  .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
+  .ic { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .ic i { font-size: 18px; color: var(--muted); }
+  .ic.on i { color: var(--accent); }
+  .ic span { font-family: var(--font-mono); font-size: 9px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="ic on"><i class="fa-solid fa-file-lines"></i><span>file-lines</span></div>
+    <div class="ic"><i class="fa-solid fa-folder"></i><span>folder</span></div>
+    <div class="ic"><i class="fa-solid fa-magnifying-glass"></i><span>search</span></div>
+    <div class="ic"><i class="fa-solid fa-plus"></i><span>plus</span></div>
+    <div class="ic"><i class="fa-solid fa-rotate"></i><span>rotate</span></div>
+    <div class="ic"><i class="fa-solid fa-code-branch"></i><span>branch</span></div>
+    <div class="ic"><i class="fa-brands fa-github"></i><span>github</span></div>
+    <div class="ic"><i class="fa-solid fa-gear"></i><span>gear</span></div>
+    <div class="ic"><i class="fa-solid fa-hashtag"></i><span>hashtag</span></div>
+    <div class="ic"><i class="fa-solid fa-chevron-right"></i><span>chevron</span></div>
+    <div class="ic"><i class="fa-solid fa-list-tree"></i><span>list-tree</span></div>
+    <div class="ic"><i class="fa-solid fa-diagram-project"></i><span>diagram</span></div>
+    <div class="ic"><i class="fa-solid fa-table"></i><span>table</span></div>
+    <div class="ic"><i class="fa-solid fa-trash"></i><span>trash</span></div>
+    <div class="ic"><i class="fa-solid fa-circle-info"></i><span>info</span></div>
+    <div class="ic"><i class="fa-brands fa-html5"></i><span>html5</span></div>
+  </div>
+</body>
+</html>

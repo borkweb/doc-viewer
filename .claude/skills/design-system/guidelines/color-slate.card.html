@@ -1,0 +1,26 @@
+<!-- @dsCard group="Colors" viewport="700x180" name="Slate · Surfaces & Chrome" subtitle="Secondary slate — backgrounds, panels, borders" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; }
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .sw { border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; }
+  .sw .chip { height: 80px; }
+  .sw .meta { padding: 9px 11px; background: var(--surface); }
+  .sw .name { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--fg); }
+  .sw .hex { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-top: 2px; text-transform: uppercase; }
+  .sw .role { font-size: var(--text-xs); color: var(--muted); margin-top: 1px; }
+</style>
+</head>
+<body>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:var(--cobalt-black)"></div><div class="meta"><div class="name">Cobalt Black</div><div class="hex">#0A0F1E</div><div class="role">--bg</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--slate-dark)"></div><div class="meta"><div class="name">Slate Dark</div><div class="hex">#111D28</div><div class="role">--surface</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--slate)"></div><div class="meta"><div class="name">Slate Base</div><div class="hex">#1C2B3A</div><div class="role">--surface-alt</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--slate-light)"></div><div class="meta"><div class="name">Slate Light</div><div class="hex">#2A3F54</div><div class="role">--surface-raised</div></div></div>
+  </div>
+</body>
+</html>
