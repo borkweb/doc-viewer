@@ -61,6 +61,17 @@ Both councils independently endorsed the full lead slate (9/9). Decomposition: *
 | D4-7 | Palette scope v1 (E4, UX) | **Projects + current-project docs + commands (tiers 1-2); defer cross-project cached github docs** | Tiers 1-2 are already in renderer state; tier 3 needs a new manifest-enumeration IPC for speculative value. |
 | D4-8 | Palette keybinding (E4) | **Renderer App-level `keydown` ⌘K/Ctrl+K, `preventDefault`, composes with existing Escape handlers, fires from input fields** | `globalShortcut` is system-wide (fires unfocused) — wrong for an in-app palette. First app-level key handler — mind Escape precedence with Settings/Add/Manage modals. |
 
-_Spec, design-review, deep-review, and per-slice build verdicts append below as they land._
+### Command-palette design review (resolved via dual council, 2026-06-14)
+
+Design review hardened the palette spec (hierarchy, states, motion, keyboard/a11y, verbatim copy, AI-slop guardrails) and surfaced four UX forks. Both councils endorsed all four leads.
+
+| # | Decision | Call | Why |
+|---|----------|------|-----|
+| D4-9 | Empty-query state (before typing) | **(c) Projects + commands; documents appear only after typing** — plus a muted hint "Type to search documents…" | Predictable launcher, no recency dependency; a big project's doc list won't swamp the panel; the hint teaches the affordance. (Recents-based empty state is a fast-follow once E3 tracks per-project recency.) |
+| D4-10 | "Switch ref…" command shape | **(a) Open the existing BranchSwitcher** (palette closes) | Reuses tested UI; inline ref sub-items would invent nested palette navigation for a single command. |
+| D4-11 | Fuzzy-match highlighting | **(b) Rank-only first cut; `<mark>` highlight deferred** — keep the scorer prefix/contiguity-favoring so rank-only stays obvious | Keeps `lib/fuzzy.ts` returning a single score (no match-index bugs); promote highlight to launch only if matching proves loose. |
+| D4-12 | Documents-tier overflow | **(a) Hard cap ~50 by score + muted "…and N more — keep typing"** | One bounded line, no windowing dep, nudges narrowing; a palette is a narrowing tool, not a 1000-row browser. |
+
+_Implementation plan, deep-review, and per-slice build verdicts append below as they land._
 
 ---
