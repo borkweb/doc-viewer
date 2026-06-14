@@ -16,6 +16,7 @@ interface Props {
   scrollToId: string | null
   scrollNonce: number
   restoreHeadingId?: string | null
+  reloadNonce?: number
   onToc?: (toc: TocEntry[]) => void
   onStats?: (stats: DocStats | null) => void
 }
@@ -26,6 +27,7 @@ export default function DocView({
   scrollToId,
   scrollNonce,
   restoreHeadingId,
+  reloadNonce,
   onToc,
   onStats
 }: Props): React.JSX.Element {
@@ -56,7 +58,7 @@ export default function DocView({
       setHtml(doc.kind === 'md' ? renderMarkdown(doc.content) : doc.content)
     })()
     return () => { cancelled = true }
-  }, [projectId, docPath])
+  }, [projectId, docPath, reloadNonce])
 
   // Render the sanitized markdown HTML imperatively (not via dangerouslySetInnerHTML)
   // so React doesn't own this subtree: buildToc and enhanceDiagrams mutate the DOM

@@ -53,6 +53,8 @@ export default function App(): React.JSX.Element {
   const [scrollNonce, setScrollNonce] = useState(0)
   const [toc, setToc] = useState<TocEntry[]>([])
   const [stats, setStats] = useState<DocStats | null>(null)
+  const [docRemoved, setDocRemoved] = useState(false)
+  const [docReloadNonce, setDocReloadNonce] = useState(0)
   const mainRef = useRef<HTMLElement>(null)
   const [initialSession] = useState<SessionState>(loadSession)
   const sessionRef = useRef<SessionState>(initialSession)
@@ -106,10 +108,11 @@ export default function App(): React.JSX.Element {
       const project = list.find((p) => p.id === pid)
       if (!project || project.status === 'unavailable') return
 
-      setActiveId(pid)
-      setDocPath(null)
-      setRestoreHeadingId(null)
-      resetDocState()
+    setActiveId(pid)
+    setDocPath(null)
+    setRestoreHeadingId(null)
+    setDocRemoved(false)
+    resetDocState()
       const { tree: nextTree } = await window.api.selectProject(pid)
       setTree(nextTree)
 
@@ -128,6 +131,7 @@ export default function App(): React.JSX.Element {
     setActiveId(id)
     setDocPath(null)
     setRestoreHeadingId(null)
+    setDocRemoved(false)
     resetDocState()
     sessionRef.current.lastProjectId = id
     saveSession(sessionRef.current)
@@ -176,6 +180,7 @@ export default function App(): React.JSX.Element {
     resetDocState()
     setScrollToId(r.headingId || null)
     setRestoreHeadingId(null)
+    setDocRemoved(false)
     setScrollNonce((n) => n + 1)
     if (activeId) {
       sessionRef.current.lastProjectId = activeId
@@ -189,6 +194,7 @@ export default function App(): React.JSX.Element {
     resetDocState()
     setScrollToId(null)
     setRestoreHeadingId(null)
+    setDocRemoved(false)
     if (activeId) {
       sessionRef.current.lastProjectId = activeId
       sessionRef.current.perProject[activeId] = { docPath: path, headingId: undefined }
@@ -235,6 +241,7 @@ export default function App(): React.JSX.Element {
       setActiveId(null)
       setTree([])
       setDocPath(null)
+      setDocRemoved(false)
       resetDocState()
     }
     await refreshProjects()
@@ -262,6 +269,22 @@ export default function App(): React.JSX.Element {
       if (timer) clearTimeout(timer)
     }
   }, [activeId, docPath])
+
+  useEffect(() => {
+    return window.api.onIndexChanged(({ projectId, tree: nextTree }) => {
+      if (projectId !== activeId) return
+      setTree(nextTree)
+      if (!docPath) return
+      if (treeHasPath(nextTree, docPath)) {
+        setRestoreHeadingId(sessionRef.current.perProject[activeId]?.headingId ?? null)
+        setDocReloadNonce((nonce) => nonce + 1)
+      } else {
+        setDocPath(null)
+        setDocRemoved(true)
+        resetDocState()
+      }
+    })
+  }, [activeId, docPath, resetDocState])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -324,9 +347,15 @@ export default function App(): React.JSX.Element {
                 scrollToId={scrollToId}
                 scrollNonce={scrollNonce}
                 restoreHeadingId={restoreHeadingId}
+                reloadNonce={docReloadNonce}
                 onToc={setToc}
                 onStats={setStats}
               />
+            ) : docRemoved ? (
+              <div className="empty-state" data-removed>
+                <i className="empty-icon fa-solid fa-file-circle-xmark" aria-hidden="true" />
+                <p>This document was removed.</p>
+              </div>
             ) : (
               <div className="empty-state">
                 <i
