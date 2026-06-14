@@ -295,10 +295,13 @@ you're in.
 ## Testing
 
 - Pipeline modules (discover, parse, index-build) are pure Node → unit-tested with
-  **vitest** against fixture directories.
+  **`bun test`** (bun's native runner) against fixture directories.
+- The renderer's DOM-dependent test (`render.ts` sanitization + heading-slug
+  parity) runs under **jsdom** globals, registered for all tests via a global
+  preload (`bunfig.toml` → `tests/setup-dom.ts`). jsdom is used rather than
+  happy-dom because happy-dom does not implement the NodeIterator removal steps
+  DOMPurify relies on, which would let `<script>` tags slip through sanitization.
 - IPC handlers tested by calling the underlying functions directly.
-- Light React component tests (React Testing Library) optional for Sidebar /
-  search interactions.
 
 ## Project layout
 

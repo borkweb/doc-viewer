@@ -6,7 +6,7 @@
 
 **Architecture:** Electron main process (Node) owns all filesystem work — a pipeline that discovers docs, parses them into Sections, and builds an in-memory MiniSearch index — and exposes it to the React renderer over a typed, context-isolated IPC bridge. The renderer is a pure view: sidebar (project selector + doc tree + search) and a content pane that renders markdown with DOMPurify-sanitized HTML, strict-mode mermaid, and zoomable diagrams. This plan is **local-only** (no GitHub, no disk cache, no theming — those are later plans); local Projects build their index in-memory on select.
 
-**Tech Stack:** Electron, electron-vite, React 19, TypeScript, Vite, marked, DOMPurify, mermaid, svg-pan-zoom, MiniSearch, Vitest, @testing-library/react, jsdom.
+**Tech Stack:** Electron, electron-vite, React 19, TypeScript, Vite, marked, DOMPurify, mermaid, svg-pan-zoom, MiniSearch, `bun test` (native test runner), jsdom (DOM environment for the renderer test, registered via a global preload).
 
 **Spec:** `docs/superpowers/specs/2026-06-14-doc-viewer-design.md` · **Glossary:** `CONTEXT.md` · **ADRs:** `docs/adr/0001` (read paths).
 
@@ -18,7 +18,8 @@
 package.json                         # deps + scripts
 electron.vite.config.ts              # main/preload/renderer build
 tsconfig.json / tsconfig.node.json / tsconfig.web.json
-vitest.config.ts                     # unit + component test config
+bunfig.toml                          # [test] preload — registers the DOM env
+tests/setup-dom.ts                   # jsdom global preload for the renderer test
 src/
   shared/
     types.ts                         # Project, Document, Section, NavTree, SearchResult, IpcApi
@@ -87,8 +88,8 @@ tests/
     "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "bun test",
+    "test:watch": "bun test --watch"
   },
   "dependencies": {
     "dompurify": "^3.2.4",
@@ -98,7 +99,8 @@ tests/
     "svg-pan-zoom": "^3.6.2"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.1.0",
+    "@types/bun": "^1.3.14",
+    "@types/jsdom": "^21.1.7",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
@@ -108,8 +110,7 @@ tests/
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.7.2",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "vite": "^5.4.11"
   }
 }
 ```
@@ -119,7 +120,7 @@ tests/
 > `out/preload/index.js`), and `__dirname` is available in those bundles. This matters
 > because **sandboxed preload scripts (`sandbox: true`) must be CommonJS** — an ESM
 > `.mjs` preload would fail at runtime. The renderer is still bundled as ESM by Vite
-> regardless. Config/test files (`electron.vite.config.ts`, `vitest.config.ts`, `tests/*`)
+> regardless. Config/test files (`electron.vite.config.ts`, `bunfig.toml`, `tests/*`)
 > are loaded by their own tooling and are unaffected.
 
 - [ ] **Step 2: Install dependencies**
@@ -191,12 +192,12 @@ export default defineConfig({
     "baseUrl": ".",
     "paths": { "@shared/*": ["src/shared/*"] }
   },
-  "include": ["src/main", "src/preload", "src/shared", "tests", "electron.vite.config.ts", "vitest.config.ts"],
+  "include": ["src/main", "src/preload", "src/shared", "tests", "electron.vite.config.ts"],
   "exclude": ["tests/render.test.ts"]
 }
 ```
 
-(The DOM test `tests/render.test.ts` is excluded from the node project and routed to the web project below, since it uses DOM APIs. Vitest still runs it under jsdom via the `environmentMatchGlobs` config regardless of tsconfig routing.)
+(The DOM test `tests/render.test.ts` is excluded from the node project and routed to the web project below, since it uses DOM APIs. `bun test` runs every test under the jsdom globals registered by the `tests/setup-dom.ts` preload — there is no per-file environment — regardless of tsconfig routing.)
 
 `tsconfig.web.json`:
 ```json
@@ -322,32 +323,53 @@ git commit -m "feat(scaffold): electron-vite + React 19 + TS app shell"
 
 ---
 
-### Task 2: Vitest setup
+### Task 2: `bun test` setup
+
+We use bun's native test runner (`bun test`). The `@shared/*` alias resolves
+from the root `tsconfig.json` `paths`, so no separate runner config is needed.
+bun has no per-file test environment, so the DOM globals the renderer test needs
+are registered once via a global preload (`bunfig.toml` → `tests/setup-dom.ts`).
 
 **Files:**
-- Create: `vitest.config.ts`
+- Create: `bunfig.toml`
+- Create: `tests/setup-dom.ts`
 - Create: `tests/smoke.test.ts`
 
-- [ ] **Step 1: Create `vitest.config.ts`**
+- [ ] **Step 1: Create `bunfig.toml`**
 
-```ts
-import { resolve } from 'node:path'
-import { defineConfig } from 'vitest/config'
-
-export default defineConfig({
-  resolve: { alias: { '@shared': resolve('src/shared') } },
-  test: {
-    environment: 'node',
-    environmentMatchGlobs: [['tests/render.test.ts', 'jsdom']],
-    include: ['tests/**/*.test.ts']
-  }
-})
+```toml
+[test]
+preload = ["./tests/setup-dom.ts"]
 ```
 
-- [ ] **Step 2: Write a trivial smoke test `tests/smoke.test.ts`**
+- [ ] **Step 2: Create the DOM preload `tests/setup-dom.ts`**
+
+Registers DOM globals (`document`, `window`, `DOMParser`, …) for all tests. The
+node fs-based tests are unaffected.
 
 ```ts
-import { describe, it, expect } from 'vitest'
+import { JSDOM } from 'jsdom'
+
+const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>', {
+  url: 'http://localhost/'
+})
+// Assign the DOM globals the renderer code touches onto globalThis.
+```
+
+> **Why jsdom and not `@happy-dom/global-registrator`?** The original plan
+> reached for happy-dom (the usual bun-native choice). In practice it cannot run
+> the renderer's DOMPurify sanitizer correctly: DOMPurify relies on the DOM
+> spec's NodeIterator "removing steps" (the iterator's reference node is adjusted
+> when a node is removed mid-traversal), which happy-dom does not implement.
+> DOMPurify therefore silently fails to strip an element that has children (e.g.
+> `<script>x</script>`) under happy-dom, so the XSS-sanitization assertions in
+> `tests/render.test.ts` would pass through unsafe HTML. jsdom implements the
+> spec correctly and preserves full coverage, so the DOM preload uses jsdom.
+
+- [ ] **Step 3: Write a trivial smoke test `tests/smoke.test.ts`**
+
+```ts
+import { describe, it, expect } from 'bun:test'
 
 describe('smoke', () => {
   it('runs', () => {
@@ -356,16 +378,16 @@ describe('smoke', () => {
 })
 ```
 
-- [ ] **Step 3: Run tests**
+- [ ] **Step 4: Run tests**
 
-Run: `bun run test`
+Run: `bun test`
 Expected: 1 passing test.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add -A
-git commit -m "test: add vitest config and smoke test"
+git commit -m "test: add bun test config and smoke test"
 ```
 
 ---
@@ -497,7 +519,7 @@ tests/fixtures/sample-docs/node_modules/ignored.md   # "# Nope" (must be ignored
 - [ ] **Step 2: Write the failing test `tests/discover.test.ts`**
 
 ```ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'bun:test'
 import { resolve } from 'node:path'
 import { discover } from '../src/main/pipeline/discover'
 
@@ -536,7 +558,7 @@ describe('discover', () => {
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `bunx vitest run tests/discover.test.ts`
+Run: `bun test tests/discover.test.ts`
 Expected: FAIL ("Cannot find module '../src/main/pipeline/discover'").
 
 - [ ] **Step 4: Implement `src/main/pipeline/discover.ts`**
@@ -634,7 +656,7 @@ export async function discover(root: string): Promise<DiscoveredDoc[]> {
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `bunx vitest run tests/discover.test.ts`
+Run: `bun test tests/discover.test.ts`
 Expected: PASS (4 tests).
 
 - [ ] **Step 6: Commit**
@@ -657,7 +679,7 @@ git commit -m "feat(pipeline): discover markdown/orphan-html with dedup, caps, i
 - [ ] **Step 1: Write the failing test `tests/parse.test.ts`**
 
 ```ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'bun:test'
 import { parseMarkdown, slugify, prettifyFilename } from '../src/main/pipeline/parse'
 
 describe('slugify', () => {
@@ -721,7 +743,7 @@ describe('parseMarkdown', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `bunx vitest run tests/parse.test.ts`
+Run: `bun test tests/parse.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/pipeline/parse.ts`**
@@ -839,7 +861,7 @@ export function parseHtml(path: string, name: string): ParsedDoc {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `bunx vitest run tests/parse.test.ts`
+Run: `bun test tests/parse.test.ts`
 Expected: PASS (7 tests).
 
 - [ ] **Step 5: Commit**
@@ -862,7 +884,7 @@ git commit -m "feat(pipeline): parse title/headings/sections + markdown strippin
 - [ ] **Step 1: Write the failing test `tests/index.test.ts`**
 
 ```ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'bun:test'
 import { buildIndex, runSearch } from '../src/main/pipeline/index'
 import type { Section } from '@shared/types'
 
@@ -895,7 +917,7 @@ describe('search index', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `bunx vitest run tests/index.test.ts`
+Run: `bun test tests/index.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/pipeline/index.ts`**
@@ -952,7 +974,7 @@ export function runSearch(index: MiniSearch, query: string): SearchResult[] {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `bunx vitest run tests/index.test.ts`
+Run: `bun test tests/index.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -975,7 +997,7 @@ git commit -m "feat(pipeline): per-section MiniSearch index + ranked search"
 - [ ] **Step 1: Write the failing test `tests/pathsafe.test.ts`**
 
 ```ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'bun:test'
 import { resolve } from 'node:path'
 import { safeResolve } from '../src/main/util/pathsafe'
 
@@ -998,7 +1020,7 @@ describe('safeResolve', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `bunx vitest run tests/pathsafe.test.ts`
+Run: `bun test tests/pathsafe.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/util/pathsafe.ts`**
@@ -1021,7 +1043,7 @@ export function safeResolve(root: string, relativePath: string): string {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `bunx vitest run tests/pathsafe.test.ts`
+Run: `bun test tests/pathsafe.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -1045,16 +1067,19 @@ git commit -m "feat(util): path-traversal guard for getDoc"
 - [ ] **Step 1: Write `src/main/paths.ts`**
 
 ```ts
-import { app } from 'electron'
 import { join } from 'node:path'
 
-// Overridable for tests (Electron's `app` is unavailable in vitest).
+// Overridable for tests (Electron's `app` is unavailable outside the Electron runtime).
 let baseDir: string | null = null
 export function setBaseDir(dir: string): void {
   baseDir = dir
 }
 export function userDataDir(): string {
   if (baseDir) return baseDir
+  // Load Electron lazily so importing this module under `bun test` (where the
+  // Electron runtime isn't present) doesn't fail. Tests always set a base dir
+  // via setBaseDir(), so they never reach this branch.
+  const { app } = require('electron')
   return app.getPath('userData')
 }
 export function projectsFile(): string {
@@ -1065,7 +1090,7 @@ export function projectsFile(): string {
 - [ ] **Step 2: Write the failing test `tests/registry.test.ts`**
 
 ```ts
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1108,7 +1133,7 @@ describe('registry', () => {
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `bunx vitest run tests/registry.test.ts`
+Run: `bun test tests/registry.test.ts`
 Expected: FAIL ("Cannot find module '../src/main/registry'").
 
 - [ ] **Step 4: Implement `src/main/registry.ts`**
@@ -1178,7 +1203,7 @@ export async function removeProject(id: string): Promise<void> {
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `bunx vitest run tests/registry.test.ts`
+Run: `bun test tests/registry.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 6: Commit**
@@ -1201,7 +1226,7 @@ git commit -m "feat(main): project registry CRUD with dedup"
 - [ ] **Step 1: Write the failing test `tests/projectService.test.ts`**
 
 ```ts
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -1255,7 +1280,7 @@ describe('projectService', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `bunx vitest run tests/projectService.test.ts`
+Run: `bun test tests/projectService.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/projectService.ts`**
@@ -1366,7 +1391,7 @@ export async function search(id: string, query: string): Promise<SearchResult[]>
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `bunx vitest run tests/projectService.test.ts`
+Run: `bun test tests/projectService.test.ts`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -1492,15 +1517,15 @@ git commit -m "feat(ipc): wire main handlers + typed preload bridge"
 
 **Files:**
 - Create: `src/renderer/src/lib/render.ts`
-- Create: `tests/render.test.ts` (jsdom)
+- Create: `tests/render.test.ts` (runs under the jsdom DOM globals from `tests/setup-dom.ts`)
 
 **Behavior:** `renderMarkdown(md)` returns sanitized HTML (marked → DOMPurify). `enhance(container)` finds mermaid code blocks, renders them with `securityLevel: 'strict'`, wraps them in zoomable canvases (svg-pan-zoom, click-to-expand), and builds heading anchors used by the TOC and search-scroll. Ported and hardened from `../mews-two/docs/scripts/build-db-html.mjs`.
 
 - [ ] **Step 1: Write the failing test `tests/render.test.ts`**
 
 ```ts
-// @vitest-environment jsdom
-import { describe, it, expect } from 'vitest'
+// DOM globals are provided by the tests/setup-dom.ts preload (see bunfig.toml).
+import { describe, it, expect } from 'bun:test'
 import { renderMarkdown } from '../src/renderer/src/lib/render'
 
 describe('renderMarkdown', () => {
@@ -1524,7 +1549,7 @@ describe('renderMarkdown', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `bunx vitest run tests/render.test.ts`
+Run: `bun test tests/render.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/renderer/src/lib/render.ts`**
@@ -1627,7 +1652,7 @@ export async function enhanceDiagrams(container: HTMLElement): Promise<void> {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `bunx vitest run tests/render.test.ts`
+Run: `bun test tests/render.test.ts`
 Expected: PASS (3 tests). (Note: `enhanceDiagrams` is exercised manually in the app; jsdom can't render mermaid SVGs, so only `renderMarkdown` is unit-tested.)
 
 - [ ] **Step 5: Commit**

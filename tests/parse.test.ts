@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'bun:test'
 import { parseMarkdown, slugify, prettifyFilename } from '../src/main/pipeline/parse'
 
 describe('slugify', () => {
