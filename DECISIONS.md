@@ -40,4 +40,6 @@ Adopted plan corrections (straight bugs from the deep review — no council need
 - **MF2** — move the `IpcApi.setDocsSubpath` addition out of Task 1 into Task 3 (with the preload impl) so Task 1 typechecks.
 - **MF3** — narrowing `themeId` to `ThemeChoice` requires updating `ipc.ts`'s `projects:updateSettings` handler param type in Task 1 (else the node typecheck breaks).
 
+**Build & verdict (Codex offload, architect-judged 2026-06-14):** implementation offloaded to a Codex builder (architect/builder split via `/bork:offload`); 9 commits on `plan-3-manage-projects`. Architect re-ran every frozen gate RAW: `bun test` 115 pass / 0 fail, `bun run typecheck` exit 0, `bunx electron-vite build` exit 0; spot-checked the council invariants in code (build-in-progress guard, `active?.id===id` guards, self-excluding collision, error branching). **Verdict: ACCEPT.** Merged to `main` (4b5d7d5) and pushed.
+
 ---
