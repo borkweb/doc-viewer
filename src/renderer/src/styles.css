@@ -159,6 +159,8 @@ body {
 /* ── App shell — full-width top nav, then sidebar + content row ──────────── */
 .app-shell { display: flex; flex-direction: column; height: 100vh; }
 .app-body { flex: 1; display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 0; }
+/* No project selected → no sidebar; content fills the width. */
+.app-body.no-sidebar { grid-template-columns: 1fr; }
 
 /* ── Top navigation bar — full width, flush on the chrome surface ────────── */
 .topbar {

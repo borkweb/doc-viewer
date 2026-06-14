@@ -109,14 +109,16 @@ export default function App(): React.JSX.Element {
         onJumpTo={jumpTo}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      <div className="app-body">
-        <Sidebar
-          activeId={activeId}
-          tree={tree}
-          docPath={docPath}
-          onOpenDoc={openDoc}
-          onOpenResult={openResult}
-        />
+      <div className={`app-body${activeId ? '' : ' no-sidebar'}`}>
+        {activeId && (
+          <Sidebar
+            activeId={activeId}
+            tree={tree}
+            docPath={docPath}
+            onOpenDoc={openDoc}
+            onOpenResult={openResult}
+          />
+        )}
         <main className="content" data-theme={docTheme}>
           <div className="content-inner">
             {activeId && docPath ? (
