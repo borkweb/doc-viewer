@@ -8,10 +8,14 @@ const THEME_OPTIONS: Array<{ value: '' | ThemeChoice; label: string }> = [
   { value: 'system', label: 'System' }
 ]
 
+function isThemeChoice(value: string | undefined): value is ThemeChoice {
+  return !!value && THEME_OPTIONS.some((option) => option.value === value)
+}
+
 export interface EditProjectModalProps {
   project: Project
   onRename: (id: string, name: string) => void
-  onSetTheme: (id: string, themeId: ThemeChoice | undefined) => void
+  onSetTheme: (id: string, themeId: string | undefined) => void
   onSetDocsSubpath: (id: string, subpath: string) => Promise<{ docCount: number }>
   onClose: () => void
 }
@@ -25,7 +29,7 @@ function isCollisionError(error: unknown): boolean {
 export default function EditProjectModal(props: EditProjectModalProps): React.JSX.Element {
   const { project } = props
   const [name, setName] = useState(project.name)
-  const [theme, setTheme] = useState<'' | ThemeChoice>(project.themeId ?? '')
+  const [theme, setTheme] = useState<'' | ThemeChoice>(isThemeChoice(project.themeId) ? project.themeId : '')
   const [subpath, setSubpath] = useState(project.type === 'github' ? project.docsSubpath ?? '' : '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)

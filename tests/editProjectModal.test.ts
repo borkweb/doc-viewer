@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import EditProjectModal, {
   type EditProjectModalProps
 } from '../src/renderer/src/components/EditProjectModal'
-import type { Project, ThemeChoice } from '../src/shared/types'
+import type { Project } from '../src/shared/types'
 
 let container: HTMLDivElement
 let root: Root
@@ -114,7 +114,7 @@ describe('EditProjectModal', () => {
 
   it('does not emit a rename or theme update when nothing changed', async () => {
     const renames: string[] = []
-    const themes: Array<ThemeChoice | undefined> = []
+    const themes: Array<string | undefined> = []
     let closed = 0
     await renderModal(
       propsWith(localProject({ themeId: 'dark' }), {
@@ -132,7 +132,7 @@ describe('EditProjectModal', () => {
   })
 
   it('maps the Global theme option to an undefined project theme', async () => {
-    const themes: Array<[string, ThemeChoice | undefined]> = []
+    const themes: Array<[string, string | undefined]> = []
     await renderModal(
       propsWith(localProject({ themeId: 'dark' }), {
         onSetTheme: (id, theme) => themes.push([id, theme])

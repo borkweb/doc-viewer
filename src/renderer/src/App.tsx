@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { Project, NavNode, SearchResult, ThemeChoice } from '@shared/types'
+import { THEME_CHOICES } from '@shared/types'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import DocView from './components/DocView'
@@ -82,7 +83,12 @@ export default function App(): React.JSX.Element {
 
   const activeProject = activeId ? projects.find((p) => p.id === activeId) ?? null : null
   const chromeTheme = resolveTheme(theme.chrome, systemDark)
-  const docTheme = resolveTheme(activeProject?.themeId ?? theme.document, systemDark)
+  const projChoice = activeProject?.themeId
+  const docChoice: ThemeChoice =
+    projChoice && (THEME_CHOICES as readonly string[]).includes(projChoice)
+      ? (projChoice as ThemeChoice)
+      : theme.document
+  const docTheme = resolveTheme(docChoice, systemDark)
 
   const refreshProjects = useCallback(async () => {
     setProjects(await window.api.listProjects())
@@ -217,7 +223,7 @@ export default function App(): React.JSX.Element {
     await refreshProjects()
   }, [refreshProjects])
 
-  const setProjectTheme = useCallback(async (id: string, themeId: ThemeChoice | undefined) => {
+  const setProjectTheme = useCallback(async (id: string, themeId: string | undefined) => {
     await window.api.updateProjectSettings(id, { themeId })
     await refreshProjects()
   }, [refreshProjects])

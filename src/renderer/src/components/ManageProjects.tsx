@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { BuildProgress, Project, ThemeChoice } from '@shared/types'
+import type { BuildProgress, Project } from '@shared/types'
 import EditProjectModal from './EditProjectModal'
 
 export interface ManageProjectsProps {
   projects: Project[]
   onRename: (id: string, name: string) => void
-  onSetTheme: (id: string, themeId: ThemeChoice | undefined) => void
+  onSetTheme: (id: string, themeId: string | undefined) => void
   onSetDocsSubpath: (id: string, subpath: string) => Promise<{ docCount: number }>
   onDelete: (id: string) => void
   onSelect: (id: string) => void
