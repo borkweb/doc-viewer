@@ -1,8 +1,9 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { Project } from '@shared/types'
+import type { Project, GithubProject, ProjectPatch } from '@shared/types'
 import { projectsFile, userDataDir } from './paths'
+import { parseGithubSource, defaultGithubName, githubIdentity } from './util/github'
 
 async function readAll(): Promise<Project[]> {
   try {
@@ -45,11 +46,11 @@ export async function addLocalProject(source: string, name?: string): Promise<Pr
   return project
 }
 
-export async function updateProject(id: string, patch: Partial<Project>): Promise<Project> {
+export async function updateProject(id: string, patch: ProjectPatch): Promise<Project> {
   const projects = await readAll()
   const idx = projects.findIndex((p) => p.id === id)
   if (idx < 0) throw new Error(`Project not found: ${id}`)
-  projects[idx] = { ...projects[idx], ...patch, id: projects[idx].id }
+  projects[idx] = { ...projects[idx], ...patch, id: projects[idx].id, type: projects[idx].type } as Project
   await writeAll(projects)
   return projects[idx]
 }
@@ -57,4 +58,75 @@ export async function updateProject(id: string, patch: Partial<Project>): Promis
 export async function removeProject(id: string): Promise<void> {
   const projects = await readAll()
   await writeAll(projects.filter((p) => p.id !== id))
+}
+
+export async function addGithubProject(
+  input: string,
+  opts: { name?: string; docsSubpath?: string } = {}
+): Promise<{ project: GithubProject; created: boolean }> {
+  const src = parseGithubSource(input)
+  const docsSubpath = opts.docsSubpath?.trim() || undefined
+  const projects = await readAll()
+  const identity = githubIdentity(src.url, docsSubpath)
+  const existing = projects.find(
+    (p): p is GithubProject =>
+      p.type === 'github' && githubIdentity(p.source, p.docsSubpath) === identity
+  )
+  if (existing) return { project: existing, created: false }
+
+  const project: GithubProject = {
+    id: randomUUID(),
+    name: opts.name?.trim() || defaultGithubName(src, docsSubpath),
+    type: 'github',
+    source: src.url,
+    docsSubpath,
+    refs: [],
+    currentRef: '',
+    addedAt: new Date().toISOString(),
+    status: 'building'
+  }
+  projects.push(project)
+  await writeAll(projects)
+  return { project, created: true }
+}
+
+function requireGithub(projects: Project[], id: string): GithubProject {
+  const p = projects.find((x) => x.id === id)
+  if (!p) throw new Error(`Project not found: ${id}`)
+  if (p.type !== 'github') throw new Error(`Not a github project: ${id}`)
+  return p
+}
+
+export async function recordRef(id: string, ref: string, docCount: number): Promise<GithubProject> {
+  const projects = await readAll()
+  const p = requireGithub(projects, id)
+  const now = new Date().toISOString()
+  const existing = p.refs.find((r) => r.ref === ref)
+  if (existing) {
+    existing.lastBuiltAt = now
+    existing.docCount = docCount
+  } else {
+    p.refs.push({ ref, lastBuiltAt: now, docCount })
+  }
+  if (!p.currentRef) p.currentRef = ref
+  p.status = 'ok'
+  await writeAll(projects)
+  return p
+}
+
+export async function setCurrentRef(id: string, ref: string): Promise<GithubProject> {
+  const projects = await readAll()
+  const p = requireGithub(projects, id)
+  p.currentRef = ref
+  await writeAll(projects)
+  return p
+}
+
+export async function removeRefRecord(id: string, ref: string): Promise<GithubProject> {
+  const projects = await readAll()
+  const p = requireGithub(projects, id)
+  p.refs = p.refs.filter((r) => r.ref !== ref)
+  if (p.currentRef === ref) p.currentRef = p.refs[0]?.ref ?? ''
+  await writeAll(projects)
+  return p
 }

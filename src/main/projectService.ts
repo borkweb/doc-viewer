@@ -1,65 +1,44 @@
 import { readFile } from 'node:fs/promises'
+import type { spawn } from 'node:child_process'
 import type MiniSearch from 'minisearch'
-import type { NavNode, NavFolder, ParsedDoc, SearchResult, DocKind } from '@shared/types'
-import { getProject, updateProject } from './registry'
+import type {
+  NavNode, ParsedDoc, SearchResult, DocKind, Project, GithubProject, BuildProgress
+} from '@shared/types'
+import {
+  getProject, updateProject, removeProject as registryRemoveProject,
+  addGithubProject as registryAddGithub, recordRef, setCurrentRef, removeRefRecord
+} from './registry'
 import { discover } from './pipeline/discover'
 import { parseMarkdown, parseHtml } from './pipeline/parse'
-import { buildIndex, runSearch } from './pipeline/index'
+import { buildIndex, loadIndex, runSearch } from './pipeline/index'
+import { buildGithubRef } from './pipeline/build'
+import { buildTree } from './tree'
+import { readCache, hasCache, purgeProjectCache, removeRefCache } from './cache'
 import { safeResolve } from './util/pathsafe'
 
 interface ActiveProject {
   id: string
-  root: string
-  docs: Map<string, ParsedDoc> // keyed by relative path
+  type: 'local' | 'github'
+  root: string // local: source dir; github: '' (served from cache)
+  docs: Map<string, ParsedDoc>
   index: MiniSearch
   tree: NavNode[]
+  contents?: Map<string, { kind: DocKind; content: string }> // github only
 }
 
 let active: ActiveProject | null = null
 
-function buildTree(docs: ParsedDoc[]): NavNode[] {
-  const rootChildren: NavNode[] = []
-  const folders = new Map<string, NavFolder>() // folder path → node
+// In-flight builds, keyed by project id, so cancelBuild can abort them.
+const inFlight = new Map<string, AbortController>()
+type BuildDeps = { spawnFn?: typeof spawn }
+const noProgress = (): void => {}
 
-  const ensureFolder = (folderPath: string): NavNode[] => {
-    if (folderPath === '') return rootChildren
-    if (folders.has(folderPath)) return folders.get(folderPath)!.children
-    const parts = folderPath.split('/')
-    const name = parts[parts.length - 1]
-    const parentPath = parts.slice(0, -1).join('/')
-    const node: NavFolder = { type: 'folder', name, path: folderPath, children: [] }
-    folders.set(folderPath, node)
-    ensureFolder(parentPath).push(node)
-    return node.children
-  }
-
-  for (const doc of docs) {
-    const parts = doc.path.split('/')
-    const folderPath = parts.slice(0, -1).join('/')
-    ensureFolder(folderPath).push({
-      type: 'doc',
-      name: parts[parts.length - 1],
-      title: doc.title,
-      path: doc.path,
-      kind: doc.kind
-    })
-  }
-
-  const sortNodes = (nodes: NavNode[]): void => {
-    nodes.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-    for (const n of nodes) if (n.type === 'folder') sortNodes(n.children)
-  }
-  sortNodes(rootChildren)
-  return rootChildren
+export function cancelBuild(id: string): void {
+  inFlight.get(id)?.abort()
 }
 
-export async function selectProject(id: string): Promise<{ tree: NavNode[]; docCount: number }> {
-  const project = await getProject(id)
-  if (!project) throw new Error(`Project not found: ${id}`)
-
-  // Tear down previous active project (active-Project lifecycle).
-  active = null
-
+// ── local select (live, in-memory) ──────────────────────────────────────────
+async function selectLocal(project: Project & { type: 'local' }): Promise<{ tree: NavNode[]; docCount: number }> {
   const root = project.source
   const discovered = await discover(root)
   const docs: ParsedDoc[] = []
@@ -71,17 +50,148 @@ export async function selectProject(id: string): Promise<{ tree: NavNode[]; docC
       docs.push(parseHtml(d.path, d.path.split('/').pop()!))
     }
   }
-
   const sections = docs.flatMap((d) => d.sections)
   const index = buildIndex(sections)
   const tree = buildTree(docs)
-
-  active = { id, root, docs: new Map(docs.map((d) => [d.path, d])), index, tree }
-  await updateProject(id, { docCount: docs.length, lastBuiltAt: new Date().toISOString(), status: 'ok' })
-
+  active = { id: project.id, type: 'local', root, docs: new Map(docs.map((d) => [d.path, d])), index, tree }
+  await updateProject(project.id, {
+    docCount: docs.length,
+    lastBuiltAt: new Date().toISOString(),
+    status: 'ok'
+  })
   return { tree, docCount: docs.length }
 }
 
+// ── github load (from cache; build if missing/stale) ────────────────────────
+async function loadGithubRef(
+  project: GithubProject,
+  ref: string,
+  onProgress: (p: BuildProgress) => void,
+  deps: BuildDeps
+): Promise<{ tree: NavNode[]; docCount: number }> {
+  let cache = await readCache(project.id, ref)
+  if (!cache) {
+    // Missing or stale (cacheVersion mismatch) → rebuild this ref.
+    const controller = new AbortController()
+    inFlight.set(project.id, controller)
+    try {
+      const { docCount } = await buildGithubRef(project, ref, onProgress, controller.signal, deps)
+      await recordRef(project.id, ref, docCount)
+    } finally {
+      inFlight.delete(project.id)
+    }
+    cache = await readCache(project.id, ref)
+    if (!cache) throw new Error(`Cache unavailable after build: ${project.id}@${ref}`)
+  }
+  const sections = cache.manifest.sections
+  const index = loadIndex(cache.indexJson, sections)
+  active = {
+    id: project.id,
+    type: 'github',
+    root: '',
+    docs: new Map(),
+    index,
+    tree: cache.manifest.tree,
+    contents: new Map(Object.entries(cache.docs))
+  }
+  return { tree: cache.manifest.tree, docCount: cache.manifest.docCount }
+}
+
+export async function selectProject(id: string): Promise<{ tree: NavNode[]; docCount: number }> {
+  const project = await getProject(id)
+  if (!project) throw new Error(`Project not found: ${id}`)
+  active = null // tear down previous (active-Project lifecycle)
+  if (project.type === 'github') return loadGithubRef(project, project.currentRef, noProgress, {})
+  return selectLocal(project)
+}
+
+// ── add github (build first ref) ────────────────────────────────────────────
+export async function addGithubProject(
+  input: string,
+  opts: { name?: string; ref?: string; docsSubpath?: string } = {},
+  onProgress: (p: BuildProgress) => void = noProgress,
+  deps: BuildDeps = {}
+): Promise<Project> {
+  const { project, created } = await registryAddGithub(input, { name: opts.name, docsSubpath: opts.docsSubpath })
+  if (!created) return project // re-add of existing identity → caller switches to it
+
+  const controller = new AbortController()
+  inFlight.set(project.id, controller)
+  try {
+    const { ref, docCount } = await buildGithubRef(project, opts.ref?.trim() || '', onProgress, controller.signal, deps)
+    return await recordRef(project.id, ref, docCount)
+  } catch (err) {
+    // A failed/canceled add leaves NO registry entry and no cache (ADR/spec).
+    await registryRemoveProject(project.id)
+    await purgeProjectCache(project.id)
+    throw err
+  } finally {
+    inFlight.delete(project.id)
+  }
+}
+
+// ── ref management (github) ─────────────────────────────────────────────────
+export async function listRefs(id: string): Promise<GithubProject['refs']> {
+  const p = await getProject(id)
+  if (!p || p.type !== 'github') throw new Error(`Not a github project: ${id}`)
+  return p.refs
+}
+
+export async function switchRef(
+  id: string,
+  ref: string,
+  onProgress: (p: BuildProgress) => void = noProgress,
+  deps: BuildDeps = {}
+): Promise<{ tree: NavNode[]; docCount: number }> {
+  const project = await getProject(id)
+  if (!project || project.type !== 'github') throw new Error(`Not a github project: ${id}`)
+  if (!(await hasCache(id, ref))) {
+    const controller = new AbortController()
+    inFlight.set(id, controller)
+    try {
+      const { docCount } = await buildGithubRef(project, ref, onProgress, controller.signal, deps)
+      await recordRef(id, ref, docCount)
+    } finally {
+      inFlight.delete(id)
+    }
+  }
+  await setCurrentRef(id, ref)
+  const updated = (await getProject(id)) as GithubProject
+  return loadGithubRef(updated, ref, onProgress, deps)
+}
+
+// Adding a ref is switching to it (builds if uncached).
+export const addRef = switchRef
+
+export async function removeRef(id: string, ref: string): Promise<void> {
+  await removeRefRecord(id, ref)
+  await removeRefCache(id, ref)
+}
+
+// ── rebuild ("Pull latest" github / "Reindex" local) ────────────────────────
+export async function rebuildProject(
+  id: string,
+  onProgress: (p: BuildProgress) => void = noProgress,
+  deps: BuildDeps = {}
+): Promise<void> {
+  const project = await getProject(id)
+  if (!project) throw new Error(`Project not found: ${id}`)
+  if (project.type === 'local') {
+    await selectLocal(project) // Reindex: re-walk live content
+    return
+  }
+  const controller = new AbortController()
+  inFlight.set(id, controller)
+  try {
+    const { ref, docCount } = await buildGithubRef(project, project.currentRef, onProgress, controller.signal, deps)
+    await recordRef(id, ref, docCount)
+    if (active?.id === id) await loadGithubRef(project, ref, onProgress, deps)
+  } finally {
+    inFlight.delete(id)
+  }
+}
+
+// ── reads (type-branched) ───────────────────────────────────────────────────
 function requireActive(id: string): ActiveProject {
   if (!active || active.id !== id) throw new Error(`Project not active: ${id}`)
   return active
@@ -89,6 +199,13 @@ function requireActive(id: string): ActiveProject {
 
 export async function getDoc(id: string, relativePath: string): Promise<{ kind: DocKind; content: string }> {
   const a = requireActive(id)
+  if (a.type === 'github') {
+    // Served from the cache map; key membership is the guard (no fs path is built
+    // from untrusted input).
+    const entry = a.contents?.get(relativePath)
+    if (!entry) throw new Error(`Document not in cache: ${relativePath}`)
+    return entry
+  }
   const abs = safeResolve(a.root, relativePath)
   const content = await readFile(abs, 'utf8')
   const kind: DocKind = relativePath.toLowerCase().endsWith('.html') ? 'html' : 'md'

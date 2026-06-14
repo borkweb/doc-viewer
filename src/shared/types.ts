@@ -37,17 +37,63 @@ export interface ParsedDoc {
   sections: Section[]
 }
 
-// Persisted project record (local-only in this plan).
+// Persisted project records. `type` discriminates the union.
 export type ProjectStatus = 'ok' | 'unavailable' | 'building' | 'error'
-export interface Project {
+
+interface ProjectBase {
   id: string // UUID
   name: string // editable display label
-  type: 'local' // github added in a later plan
-  source: string // absolute directory path
   addedAt: string // ISO timestamp
+  status: ProjectStatus
+  themeId?: string // per-project theme override (Plan 5); absent = use global
+}
+
+export interface LocalProject extends ProjectBase {
+  type: 'local'
+  source: string // absolute directory path
   lastBuiltAt?: string
   docCount?: number
-  status: ProjectStatus
+}
+
+// One cached ref of a GitHub Project (branch/tag/commit). ADR-0002.
+export interface RefInfo {
+  ref: string
+  lastBuiltAt: string
+  docCount: number
+}
+
+export interface GithubProject extends ProjectBase {
+  type: 'github'
+  source: string // normalized https://github.com/owner/repo
+  docsSubpath?: string // overrides docs-folder auto-scoping (ADR-0004); part of identity (ADR-0002)
+  refs: RefInfo[] // cached refs
+  currentRef: string // selected ref; '' only transiently during first build
+}
+
+export type Project = LocalProject | GithubProject
+
+// A patch accepted by registry.updateProject — partial of either variant.
+export type ProjectPatch = Partial<Omit<LocalProject, 'id' | 'type'>> &
+  Partial<Omit<GithubProject, 'id' | 'type'>>
+
+// Pipeline progress streamed to the renderer during a github build.
+export type BuildStage =
+  | 'cloning'
+  | 'resolving'
+  | 'discovering'
+  | 'parsing'
+  | 'indexing'
+  | 'caching'
+  | 'cleanup'
+  | 'done'
+  | 'error'
+export interface BuildProgress {
+  projectId: string
+  ref: string
+  stage: BuildStage
+  message?: string
+  docCount?: number
+  skipped?: number
 }
 
 // A search hit (per Section).
@@ -64,12 +110,27 @@ export interface SearchResult {
 export interface IpcApi {
   listProjects(): Promise<Project[]>
   addLocalProject(source: string, name?: string): Promise<Project>
+  addGithubProject(
+    source: string,
+    opts?: { name?: string; ref?: string; docsSubpath?: string }
+  ): Promise<Project>
   removeProject(id: string): Promise<void>
+  updateProjectSettings(
+    id: string,
+    patch: { name?: string; docsSubpath?: string; themeId?: string }
+  ): Promise<Project>
+  rebuildProject(id: string): Promise<void> // "Pull latest" (github) / "Reindex" (local)
+  cancelBuild(id: string): Promise<void>
+  listRefs(id: string): Promise<RefInfo[]>
+  switchRef(id: string, ref: string): Promise<{ tree: NavNode[]; docCount: number }>
+  addRef(id: string, ref: string): Promise<{ tree: NavNode[]; docCount: number }>
+  removeRef(id: string, ref: string): Promise<void>
   selectProject(id: string): Promise<{ tree: NavNode[]; docCount: number }>
   getDoc(id: string, relativePath: string): Promise<{ kind: DocKind; content: string }>
   search(id: string, query: string): Promise<SearchResult[]>
   pickDirectory(): Promise<string | null>
   openPath(target: string): Promise<void>
+  onBuildProgress(cb: (p: BuildProgress) => void): () => void // returns unsubscribe
 }
 
 declare global {

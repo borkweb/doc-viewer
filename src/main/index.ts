@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpc } from './ipc'
+import { sweepOrphans } from './cache'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -31,7 +32,8 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await sweepOrphans()
   registerIpc()
   createWindow()
   app.on('activate', () => {

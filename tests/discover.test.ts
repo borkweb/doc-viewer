@@ -74,3 +74,25 @@ describe('discover (docs/ folder scoping)', () => {
     expect(skipped.some((s) => s.path.startsWith('adr/'))).toBe(false)
   })
 })
+
+describe('discover (explicit docsSubpath override)', () => {
+  it('confines discovery to the subpath, ignoring docs/ auto-scoping', async () => {
+    const docs = await discover(scopedRoot, { docsSubpath: 'src' })
+    const paths = docs.map((d) => d.path).sort()
+    expect(paths).toContain('src/internal.md')
+    // Auto-scoping would have surfaced these; the override suppresses them.
+    expect(paths).not.toContain('README.md')
+    expect(paths).not.toContain('docs/guide.md')
+    expect(paths).not.toContain('documentation/extra.md')
+  })
+
+  it('rejects a traversal docsSubpath', async () => {
+    await expect(discover(scopedRoot, { docsSubpath: '../etc' })).rejects.toThrow(/outside project/i)
+  })
+
+  it('reports an unavailable subpath as a single skip (no docs)', async () => {
+    const { docs, skipped } = await discoverDetailed(scopedRoot, { docsSubpath: 'nope' })
+    expect(docs).toHaveLength(0)
+    expect(skipped.some((s) => /readdir failed|outside/i.test(s.reason))).toBe(true)
+  })
+})

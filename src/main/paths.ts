@@ -17,3 +17,13 @@ export function userDataDir(): string {
 export function projectsFile(): string {
   return join(userDataDir(), 'projects.json')
 }
+export function cacheRoot(): string {
+  return join(userDataDir(), 'cache')
+}
+export function projectCacheDir(id: string): string {
+  return join(cacheRoot(), id)
+}
+// Refs may contain '/', ':' etc. encodeURIComponent yields a single safe dir name.
+export function refCacheDir(id: string, ref: string): string {
+  return join(projectCacheDir(id), encodeURIComponent(ref))
+}
