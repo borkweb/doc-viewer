@@ -7,6 +7,7 @@ interface Props {
   stats: DocStats | null
   onOpenPath: (target: string) => void
   onJump: (id: string) => void
+  branchSwitcher?: React.ReactNode
 }
 
 function plural(n: number, word: string): string {
@@ -17,7 +18,8 @@ export default function StatusBar({
   project,
   stats,
   onOpenPath,
-  onJump
+  onJump,
+  branchSwitcher
 }: Props): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -71,6 +73,7 @@ export default function StatusBar({
           <i className="fa-solid fa-folder-open" aria-hidden="true" />
           <span className="status-source-text">{project.source}</span>
         </button>
+        {branchSwitcher}
       </div>
       <div className="status-stats">
         {stats && (

@@ -11,7 +11,6 @@ interface Props {
   onSelectProject: (id: string) => void
   onOpenAdd: () => void
   onRebuild: () => void
-  branchSwitcher?: React.ReactNode
   onJumpTo: (id: string) => void
   onOpenSettings: () => void
 }
@@ -85,7 +84,9 @@ export default function TopBar(props: Props): React.JSX.Element {
             <span className="breadcrumb-title" title={docTitle}>{docTitle}</span>
           </div>
         )}
-        {props.branchSwitcher}
+      </div>
+
+      <div className="topbar-right">
         {props.activeProject && (
           <button
             className="icon-button"
@@ -96,9 +97,6 @@ export default function TopBar(props: Props): React.JSX.Element {
             <i className="fa-solid fa-rotate" aria-hidden="true" />
           </button>
         )}
-      </div>
-
-      <div className="topbar-right">
         {hasToc && (
           <div className="toc-wrap">
             <button

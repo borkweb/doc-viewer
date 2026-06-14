@@ -152,17 +152,6 @@ export default function App(): React.JSX.Element {
         onSelectProject={selectProject}
         onOpenAdd={() => setAddOpen(true)}
         onRebuild={rebuild}
-        branchSwitcher={
-          activeProject?.type === 'github' ? (
-            <BranchSwitcher
-              refs={activeProject.refs}
-              currentRef={activeProject.currentRef}
-              onSwitch={switchRef}
-              onAddRef={addRef}
-              onRemoveRef={removeRef}
-            />
-          ) : undefined
-        }
         onJumpTo={jumpTo}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -205,6 +194,17 @@ export default function App(): React.JSX.Element {
           stats={stats}
           onOpenPath={openPath}
           onJump={jumpTo}
+          branchSwitcher={
+            activeProject.type === 'github' ? (
+              <BranchSwitcher
+                refs={activeProject.refs}
+                currentRef={activeProject.currentRef}
+                onSwitch={switchRef}
+                onAddRef={addRef}
+                onRemoveRef={removeRef}
+              />
+            ) : undefined
+          }
         />
       )}
       {addOpen && <AddProjectModal onAdded={onAdded} onClose={() => setAddOpen(false)} />}
