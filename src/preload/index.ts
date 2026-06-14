@@ -8,7 +8,8 @@ const api: IpcApi = {
   selectProject: (id) => ipcRenderer.invoke('projects:select', id),
   getDoc: (id, relativePath) => ipcRenderer.invoke('projects:getDoc', id, relativePath),
   search: (id, query) => ipcRenderer.invoke('projects:search', id, query),
-  pickDirectory: () => ipcRenderer.invoke('dialog:pickDirectory')
+  pickDirectory: () => ipcRenderer.invoke('dialog:pickDirectory'),
+  openPath: (target) => ipcRenderer.invoke('shell:openPath', target)
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -4,7 +4,8 @@ import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import DocView from './components/DocView'
 import Settings from './components/Settings'
-import type { TocEntry } from './lib/render'
+import StatusBar from './components/StatusBar'
+import type { TocEntry, DocStats } from './lib/render'
 import {
   loadThemeSettings,
   saveThemeSettings,
@@ -34,6 +35,7 @@ export default function App(): React.JSX.Element {
   // Bumped on every jump so DocView re-scrolls even to the same heading twice.
   const [scrollNonce, setScrollNonce] = useState(0)
   const [toc, setToc] = useState<TocEntry[]>([])
+  const [stats, setStats] = useState<DocStats | null>(null)
 
   // Theme: chrome and document themed independently; 'system' follows the OS.
   const [theme, setTheme] = useState<ThemeSettings>(loadThemeSettings)
@@ -60,13 +62,19 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => { void refreshProjects() }, [refreshProjects])
 
+  // Clear per-document state on any navigation that changes the open doc.
+  const resetDocState = useCallback(() => {
+    setToc([])
+    setStats(null)
+  }, [])
+
   const selectProject = useCallback(async (id: string) => {
     setActiveId(id)
     setDocPath(null)
-    setToc([])
+    resetDocState()
     const { tree } = await window.api.selectProject(id)
     setTree(tree)
-  }, [])
+  }, [resetDocState])
 
   const addProject = useCallback(async () => {
     const dir = await window.api.pickDirectory()
@@ -78,16 +86,16 @@ export default function App(): React.JSX.Element {
 
   const openResult = useCallback((r: SearchResult) => {
     setDocPath(r.docPath)
-    setToc([])
+    resetDocState()
     setScrollToId(r.headingId || null)
     setScrollNonce((n) => n + 1)
-  }, [])
+  }, [resetDocState])
 
   const openDoc = useCallback((path: string) => {
     setDocPath(path)
-    setToc([])
+    resetDocState()
     setScrollToId(null)
-  }, [])
+  }, [resetDocState])
 
   // Jump to a heading in the current doc (e.g. from the Contents menu).
   const jumpTo = useCallback((id: string) => {
@@ -95,6 +103,11 @@ export default function App(): React.JSX.Element {
     setScrollNonce((n) => n + 1)
   }, [])
 
+  const openPath = useCallback((target: string) => {
+    void window.api.openPath(target)
+  }, [])
+
+  const activeProject = activeId ? projects.find((p) => p.id === activeId) ?? null : null
   const docTitle = docPath ? findDocTitle(tree, docPath) : null
 
   return (
@@ -128,6 +141,7 @@ export default function App(): React.JSX.Element {
                 scrollToId={scrollToId}
                 scrollNonce={scrollNonce}
                 onToc={setToc}
+                onStats={setStats}
               />
             ) : (
               <div className="empty-state">
@@ -141,6 +155,14 @@ export default function App(): React.JSX.Element {
           </div>
         </main>
       </div>
+      {activeProject && (
+        <StatusBar
+          project={activeProject}
+          stats={stats}
+          onOpenPath={openPath}
+          onJump={jumpTo}
+        />
+      )}
       {settingsOpen && (
         <Settings settings={theme} onChange={setTheme} onClose={() => setSettingsOpen(false)} />
       )}

@@ -31,6 +31,56 @@ export interface TocEntry {
   depth: number
 }
 
+// A jumpable diagram, labeled by the top-level (h1) heading it sits under.
+export interface DiagramRef {
+  id: string // the diagram element id, e.g. "diagram-0"
+  label: string
+}
+
+// Reading stats for the open document, shown in the status bar.
+export interface DocStats {
+  words: number
+  diagrams: DiagramRef[] // rendered mermaid diagrams, in document order
+}
+
+// Compute stats from rendered content. Call after enhanceDiagrams so diagrams
+// exist in the DOM and their source is counted as a diagram (not as words).
+export function computeDocStats(container: HTMLElement): DocStats {
+  const text = container.textContent ?? ''
+  const words = (text.match(/\S+/g) ?? []).length
+  return { words, diagrams: collectDiagrams(container) }
+}
+
+// Walk the rendered content in document order, labeling each diagram by the
+// nearest preceding top-level section heading (h2). A diagram that isn't beneath
+// any h2 falls back to the enclosing h1 (the document title). Each new h1 resets
+// the h2 context. Diagrams sharing a heading get a zero-padded ordinal suffix
+// ("Heading 01", "Heading 02").
+function collectDiagrams(container: HTMLElement): DiagramRef[] {
+  const raw: { id: string; heading: string }[] = []
+  let h1 = ''
+  let h2 = ''
+  container.querySelectorAll('h1, h2, .diagram').forEach((el) => {
+    if (el.tagName === 'H1') {
+      h1 = el.textContent?.trim() || ''
+      h2 = ''
+    } else if (el.tagName === 'H2') {
+      h2 = el.textContent?.trim() || ''
+    } else {
+      raw.push({ id: el.id, heading: h2 || h1 || 'Diagram' })
+    }
+  })
+  const totals = new Map<string, number>()
+  raw.forEach((r) => totals.set(r.heading, (totals.get(r.heading) ?? 0) + 1))
+  const seen = new Map<string, number>()
+  return raw.map((r) => {
+    if ((totals.get(r.heading) ?? 0) <= 1) return { id: r.id, label: r.heading }
+    const n = (seen.get(r.heading) ?? 0) + 1
+    seen.set(r.heading, n)
+    return { id: r.id, label: `${r.heading} ${String(n).padStart(2, '0')}` }
+  })
+}
+
 // Assign ids to headings and return the TOC. Call after setting innerHTML.
 export function buildToc(container: HTMLElement): TocEntry[] {
   const toc: TocEntry[] = []
@@ -55,6 +105,7 @@ export async function enhanceDiagrams(container: HTMLElement): Promise<void> {
     const src = code.textContent ?? ''
     const wrap = document.createElement('div')
     wrap.className = 'diagram'
+    wrap.id = `diagram-${i}` // jump target for the status bar
     const canvas = document.createElement('div')
     canvas.className = 'diagram-canvas'
     wrap.appendChild(canvas)

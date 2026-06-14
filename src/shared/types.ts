@@ -69,6 +69,7 @@ export interface IpcApi {
   getDoc(id: string, relativePath: string): Promise<{ kind: DocKind; content: string }>
   search(id: string, query: string): Promise<SearchResult[]>
   pickDirectory(): Promise<string | null>
+  openPath(target: string): Promise<void>
 }
 
 declare global {

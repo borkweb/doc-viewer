@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DocKind } from '@shared/types'
-import { renderMarkdown, buildToc, enhanceDiagrams, type TocEntry } from '../lib/render'
+import {
+  renderMarkdown,
+  buildToc,
+  enhanceDiagrams,
+  computeDocStats,
+  type TocEntry,
+  type DocStats
+} from '../lib/render'
 
 interface Props {
   projectId: string
@@ -8,6 +15,7 @@ interface Props {
   scrollToId: string | null
   scrollNonce: number
   onToc?: (toc: TocEntry[]) => void
+  onStats?: (stats: DocStats | null) => void
 }
 
 export default function DocView({
@@ -15,7 +23,8 @@ export default function DocView({
   docPath,
   scrollToId,
   scrollNonce,
-  onToc
+  onToc,
+  onStats
 }: Props): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [kind, setKind] = useState<DocKind>('md')
@@ -44,16 +53,29 @@ export default function DocView({
     return () => { cancelled = true }
   }, [projectId, docPath])
 
-  // After markdown HTML is in the DOM: build TOC (reporting it up), enhance
-  // diagrams, then scroll to the initial target once layout settles.
+  // Render the sanitized markdown HTML imperatively (not via dangerouslySetInnerHTML)
+  // so React doesn't own this subtree: buildToc and enhanceDiagrams mutate the DOM
+  // directly, and the onToc/onStats state updates that follow would otherwise make
+  // React re-apply innerHTML mid-enhancement and wipe the rendered diagrams.
   useEffect(() => {
-    if (kind !== 'md' || !ref.current || !html) {
+    if (kind !== 'md' || !ref.current) {
       onToc?.([])
+      onStats?.(null)
       return
     }
     const container = ref.current
-    onToc?.(buildToc(container))
-    void enhanceDiagrams(container).then(doScroll)
+    container.innerHTML = html
+    if (!html) {
+      onToc?.([])
+      onStats?.(null)
+      return
+    }
+    const toc = buildToc(container)
+    onToc?.(toc)
+    void enhanceDiagrams(container).then(() => {
+      onStats?.(computeDocStats(container))
+      doScroll()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [html, kind])
 
@@ -75,5 +97,5 @@ export default function DocView({
     )
   }
 
-  return <div ref={ref} dangerouslySetInnerHTML={{ __html: html }} />
+  return <div ref={ref} />
 }

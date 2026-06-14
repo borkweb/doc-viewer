@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron'
+import { ipcMain, dialog, shell } from 'electron'
 import { listProjects, addLocalProject, removeProject } from './registry'
 import { selectProject, getDoc, search } from './projectService'
 
@@ -16,5 +16,9 @@ export function registerIpc(): void {
   ipcMain.handle('dialog:pickDirectory', async () => {
     const res = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0]
+  })
+  // Reveal a local path in the OS file browser (status-bar project link).
+  ipcMain.handle('shell:openPath', async (_e, target: string) => {
+    await shell.openPath(target)
   })
 }
