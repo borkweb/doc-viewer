@@ -121,7 +121,49 @@ export function highlightCode(container: HTMLElement): void {
       lang = auto.language
     }
     code.classList.add('hljs')
-    void lang
+
+    const pre = code.parentElement as HTMLElement
+
+    const block = document.createElement('div')
+    block.className = 'code-block'
+    if (lang) block.dataset.lang = lang
+
+    const toolbar = document.createElement('div')
+    toolbar.className = 'code-toolbar'
+    if (lang) {
+      const badge = document.createElement('span')
+      badge.className = 'code-lang'
+      badge.textContent = lang
+      toolbar.appendChild(badge)
+    }
+    const copy = document.createElement('button')
+    copy.type = 'button'
+    copy.className = 'code-copy'
+    copy.textContent = 'Copy'
+    copy.addEventListener('click', () => {
+      void navigator.clipboard.writeText(source).then(() => {
+        copy.textContent = 'Copied!'
+        copy.classList.add('copied')
+        setTimeout(() => {
+          copy.textContent = 'Copy'
+          copy.classList.remove('copied')
+        }, 1500)
+      })
+    })
+    toolbar.appendChild(copy)
+
+    const body = document.createElement('div')
+    body.className = 'code-body'
+    const gutter = document.createElement('div')
+    gutter.className = 'code-gutter'
+    gutter.setAttribute('aria-hidden', 'true')
+    const lines = source.replace(/\n$/, '').split('\n')
+    gutter.textContent = lines.map((_, i) => String(i + 1)).join('\n')
+
+    // Swap the bare <pre> for the wrapped structure.
+    pre.replaceWith(block)
+    body.append(gutter, pre)
+    block.append(toolbar, body)
   })
 }
 

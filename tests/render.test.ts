@@ -62,4 +62,25 @@ describe('highlightCode', () => {
     expect(c.querySelector('code.language-mermaid')).not.toBeNull()
     expect(c.querySelector('.code-block')).toBeNull()
   })
+
+  it('shows a language badge with the resolved language', () => {
+    const c = setup('```ts\nconst x = 1\n```')
+    expect(c.querySelector('.code-lang')?.textContent).toBe('ts')
+  })
+
+  it('renders a copy button', () => {
+    const c = setup('```js\nfoo()\n```')
+    expect(c.querySelector('button.code-copy')).not.toBeNull()
+  })
+
+  it('numbers each source line in the gutter', () => {
+    const c = setup('```js\na\nb\nc\n```')
+    expect(c.querySelector('.code-gutter')?.getAttribute('aria-hidden')).toBe('true')
+    expect(c.querySelector('.code-gutter')?.textContent).toBe('1\n2\n3')
+  })
+
+  it('moves the pre into a .code-block wrapper', () => {
+    const c = setup('```js\nfoo()\n```')
+    expect(c.querySelector('.code-block .code-body > pre > code.hljs')).not.toBeNull()
+  })
 })
