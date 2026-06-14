@@ -8,6 +8,7 @@ import StatusBar from './components/StatusBar'
 import AddProjectModal from './components/AddProjectModal'
 import BranchSwitcher from './components/BranchSwitcher'
 import ManageProjects from './components/ManageProjects'
+import CommandPalette from './components/CommandPalette'
 import type { TocEntry, DocStats } from './lib/render'
 import {
   loadThemeSettings,
@@ -65,6 +66,8 @@ export default function App(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [view, setView] = useState<'docs' | 'manage'>('docs')
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [refFocusNonce, setRefFocusNonce] = useState(0)
 
   useEffect(() => { saveThemeSettings(theme) }, [theme])
 
@@ -260,6 +263,18 @@ export default function App(): React.JSX.Element {
     }
   }, [activeId, docPath])
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
+        if (addOpen || settingsOpen) return
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [addOpen, settingsOpen])
+
   const docTitle = docPath ? findDocTitle(tree, docPath) : null
   const manageActive = view === 'manage'
 
@@ -338,9 +353,26 @@ export default function App(): React.JSX.Element {
                 onSwitch={switchRef}
                 onAddRef={addRef}
                 onRemoveRef={removeRef}
+                focusNonce={refFocusNonce}
               />
             ) : undefined
           }
+        />
+      )}
+      {paletteOpen && !addOpen && !settingsOpen && (
+        <CommandPalette
+          projects={projects}
+          activeId={activeId}
+          activeProject={activeProject}
+          tree={tree}
+          onSelectProject={selectProject}
+          onOpenDoc={(path) => { setView('docs'); openDoc(path) }}
+          onSwitchRef={() => { setView('docs'); setPaletteOpen(false); setRefFocusNonce((n) => n + 1) }}
+          onAddProject={() => setAddOpen(true)}
+          onManageProjects={() => setView('manage')}
+          onRebuild={rebuild}
+          onSettings={() => setSettingsOpen(true)}
+          onClose={() => setPaletteOpen(false)}
         />
       )}
       {addOpen && <AddProjectModal onAdded={onAdded} onClose={() => setAddOpen(false)} />}
