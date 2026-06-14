@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { Project, NavNode, SearchResult } from '@shared/types'
+import type { Project, NavNode, SearchResult, ThemeChoice } from '@shared/types'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import DocView from './components/DocView'
@@ -7,6 +7,7 @@ import Settings from './components/Settings'
 import StatusBar from './components/StatusBar'
 import AddProjectModal from './components/AddProjectModal'
 import BranchSwitcher from './components/BranchSwitcher'
+import ManageProjects from './components/ManageProjects'
 import type { TocEntry, DocStats } from './lib/render'
 import {
   loadThemeSettings,
@@ -28,6 +29,17 @@ function findDocTitle(nodes: NavNode[], path: string): string | null {
   return null
 }
 
+function treeHasPath(nodes: NavNode[], path: string): boolean {
+  for (const node of nodes) {
+    if (node.type === 'doc') {
+      if (node.path === path) return true
+    } else if (treeHasPath(node.children, path)) {
+      return true
+    }
+  }
+  return false
+}
+
 export default function App(): React.JSX.Element {
   const [projects, setProjects] = useState<Project[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -46,6 +58,7 @@ export default function App(): React.JSX.Element {
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [view, setView] = useState<'docs' | 'manage'>('docs')
 
   useEffect(() => { saveThemeSettings(theme) }, [theme])
 
@@ -56,8 +69,9 @@ export default function App(): React.JSX.Element {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  const activeProject = activeId ? projects.find((p) => p.id === activeId) ?? null : null
   const chromeTheme = resolveTheme(theme.chrome, systemDark)
-  const docTheme = resolveTheme(theme.document, systemDark)
+  const docTheme = resolveTheme(activeProject?.themeId ?? theme.document, systemDark)
 
   const refreshProjects = useCallback(async () => {
     setProjects(await window.api.listProjects())
@@ -72,6 +86,7 @@ export default function App(): React.JSX.Element {
   }, [])
 
   const selectProject = useCallback(async (id: string) => {
+    setView('docs')
     setActiveId(id)
     setDocPath(null)
     resetDocState()
@@ -138,8 +153,42 @@ export default function App(): React.JSX.Element {
     void window.api.openPath(target)
   }, [])
 
-  const activeProject = activeId ? projects.find((p) => p.id === activeId) ?? null : null
+  const renameProject = useCallback(async (id: string, name: string) => {
+    await window.api.updateProjectSettings(id, { name })
+    await refreshProjects()
+  }, [refreshProjects])
+
+  const setProjectTheme = useCallback(async (id: string, themeId: ThemeChoice | undefined) => {
+    await window.api.updateProjectSettings(id, { themeId })
+    await refreshProjects()
+  }, [refreshProjects])
+
+  const setProjectDocsSubpath = useCallback(async (id: string, subpath: string) => {
+    const result = await window.api.setDocsSubpath(id, subpath)
+    await refreshProjects()
+    if (id === activeId) {
+      setTree(result.tree)
+      if (docPath && !treeHasPath(result.tree, docPath)) {
+        setDocPath(null)
+        resetDocState()
+      }
+    }
+    return { docCount: result.docCount }
+  }, [activeId, docPath, refreshProjects, resetDocState])
+
+  const deleteProject = useCallback(async (id: string) => {
+    await window.api.removeProject(id)
+    if (id === activeId) {
+      setActiveId(null)
+      setTree([])
+      setDocPath(null)
+      resetDocState()
+    }
+    await refreshProjects()
+  }, [activeId, refreshProjects, resetDocState])
+
   const docTitle = docPath ? findDocTitle(tree, docPath) : null
+  const manageActive = view === 'manage'
 
   return (
     <div className="app-shell" data-theme={chromeTheme}>
@@ -153,10 +202,12 @@ export default function App(): React.JSX.Element {
         onOpenAdd={() => setAddOpen(true)}
         onRebuild={rebuild}
         onJumpTo={jumpTo}
+        manageActive={manageActive}
+        onToggleManage={() => setView((current) => current === 'manage' ? 'docs' : 'manage')}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      <div className={`app-body${activeId ? '' : ' no-sidebar'}`}>
-        {activeId && (
+      <div className={`app-body${activeId && !manageActive ? '' : ' no-sidebar'}`}>
+        {activeId && !manageActive && (
           <Sidebar
             activeId={activeId}
             tree={tree}
@@ -167,7 +218,18 @@ export default function App(): React.JSX.Element {
         )}
         <main className="content" data-theme={docTheme}>
           <div className="content-inner">
-            {activeId && docPath ? (
+            {manageActive ? (
+              <ManageProjects
+                projects={projects}
+                onRename={renameProject}
+                onSetTheme={setProjectTheme}
+                onSetDocsSubpath={setProjectDocsSubpath}
+                onDelete={deleteProject}
+                onSelect={selectProject}
+                onAddProject={() => setAddOpen(true)}
+                onDone={() => setView('docs')}
+              />
+            ) : activeId && docPath ? (
               <DocView
                 projectId={activeId}
                 docPath={docPath}
@@ -188,7 +250,7 @@ export default function App(): React.JSX.Element {
           </div>
         </main>
       </div>
-      {activeProject && (
+      {activeProject && !manageActive && (
         <StatusBar
           project={activeProject}
           stats={stats}

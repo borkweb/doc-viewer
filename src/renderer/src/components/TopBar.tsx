@@ -12,6 +12,8 @@ interface Props {
   onOpenAdd: () => void
   onRebuild: () => void
   onJumpTo: (id: string) => void
+  manageActive: boolean
+  onToggleManage: () => void
   onOpenSettings: () => void
 }
 
@@ -132,6 +134,16 @@ export default function TopBar(props: Props): React.JSX.Element {
             )}
           </div>
         )}
+        <button
+          className={`icon-button${props.manageActive ? ' active' : ''}`}
+          data-action="toggle-manage"
+          onClick={props.onToggleManage}
+          title="Manage projects"
+          aria-label="Manage projects"
+          aria-pressed={props.manageActive}
+        >
+          <i className="fa-solid fa-folder-tree" aria-hidden="true" />
+        </button>
         <button
           className="icon-button"
           onClick={props.onOpenSettings}
