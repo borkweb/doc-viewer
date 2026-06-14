@@ -61,17 +61,17 @@ export function parseMarkdown(path: string, name: string, raw: string): ParsedDo
   // Intro section: text before the first heading.
   const firstHeadingLine = headings.length ? headings[0].line : lines.length
   const introText = stripMarkdown(lines.slice(0, firstHeadingLine).join('\n'))
-  // Always emit an intro section (even when empty) so a doc yields an intro
-  // section plus one section per heading, per the parse contract.
-  sections.push({
-    id: `${path}#`,
-    docPath: path,
-    docTitle: title,
-    headingId: '',
-    headingText: '',
-    depth: 0,
-    text: introText
-  })
+  if (introText) {
+    sections.push({
+      id: `${path}#`,
+      docPath: path,
+      docTitle: title,
+      headingId: '',
+      headingText: '',
+      depth: 0,
+      text: introText
+    })
+  }
 
   headings.forEach((h, idx) => {
     const start = h.line + 1

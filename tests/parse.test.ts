@@ -33,10 +33,17 @@ describe('parseMarkdown', () => {
     expect(parsed.title).toBe('Database Design')
   })
 
-  it('splits into an intro section plus one per heading', () => {
+  it('splits into one section per heading (no empty intro when the doc starts with a heading)', () => {
     const parsed = parseMarkdown('db.md', 'db.md', md)
     const headings = parsed.sections.map((s) => s.headingText)
-    expect(headings).toEqual(['', 'Database Design', 'Tables', 'Indexes'])
+    expect(headings).toEqual(['Database Design', 'Tables', 'Indexes'])
+  })
+
+  it('emits an intro section for content before the first heading', () => {
+    const withIntro = 'Preface text.\n\n# Title\n\nbody'
+    const parsed = parseMarkdown('x.md', 'x.md', withIntro)
+    expect(parsed.sections[0].headingText).toBe('')
+    expect(parsed.sections[0].text).toContain('Preface text')
   })
 
   it('strips markdown from section text', () => {
