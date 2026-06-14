@@ -28,9 +28,15 @@ table of contents, and a dark-mode aesthetic with a purple accent.
   deleted**; the processed result is cached so viewing works offline.
 - **Local directories are read live** (always fresh) and **watched** for changes
   (auto-refresh); the cache/Rebuild path is the GitHub story. *(E2)*
-- **Session memory:** remember the last-open doc + scroll position per project and
-  restore on relaunch. *(E3)*
-- **Command palette (⌘K):** fuzzy-jump to any project or doc. *(E4)*
+- **Session memory:** remember the last-open doc + scroll position per project (and
+  the selected ref for GitHub Projects) and restore on relaunch. *(E3)*
+- **Command palette (⌘K):** two-tier fuzzy jump *(E4)*. Always: all **Projects**
+  (jump = switch, re-indexing local as needed) and all **Documents in the current
+  Project** (jump = instant scroll). Opportunistically: **Documents from GitHub
+  Projects whose manifests are already on disk** (jump = switch + open). Non-selected
+  **local** Projects contribute only their Project entry, never doc-level entries
+  (their index isn't kept warm — see Active-Project lifecycle). Full cross-project
+  *document* search is E1 (deferred).
 
 ## Non-Goals
 
@@ -70,16 +76,47 @@ code.
 
 ### Storage (Electron `userData`)
 
-- `projects.json` — registry array of:
-  `{ id, name, type: 'local' | 'github', source, addedAt, lastBuiltAt, docCount, status }`
-  where `status` ∈ `ok | unavailable | building | error`.
-- `cache/<projectId>/`:
-  - `manifest.json` — nav tree + per-doc metadata (title, relative path, headings
-    for the TOC).
+- `projects.json` — registry array. Common fields:
+  `{ id, name, type: 'local' | 'github', addedAt, status }` where `id` is a
+  generated UUID (never the name), `name` is a user-editable display label, and
+  `status` ∈ `ok | unavailable | building | error`.
+  - **local** Projects add: `source` (absolute directory path), `lastBuiltAt`,
+    `docCount`.
+  - **github** Projects add: `source` (normalized `https://github.com/owner/repo`
+    URL), `docsSubpath?`, `refs` (array of cached refs, each
+    `{ ref, lastBuiltAt, docCount }`), and `currentRef` (the selected one).
+  - **Identity / dedup:** local = the absolute path; github = `(source,
+    docsSubpath)` — the **ref is NOT part of identity**. Re-adding the same identity
+    switches to the existing Project instead of duplicating. A GitHub Project and a
+    local clone of the same repo are intentionally two Projects (different source
+    types, different lifecycles — see ADR-0001).
+  - **Default name** is derived (local: directory basename; github: `owner/repo`,
+    plus ` /subpath` when scoped) and editable. Collisions are fine because identity
+    is the UUID.
+  - `source` input — Add-Project accepts a full `https` URL or the `owner/repo`
+    shorthand (normalized to https). SSH-URL *input* parsing is deferred; private
+    https repos still authenticate via the user's git credential helper.
+  - `docsSubpath?` — optional path within the repo to scope discovery (e.g.
+    `docs/`); when absent, discovery walks the whole clone. The whole repo is cloned
+    regardless (shallow); the subpath only narrows discovery.
+- **Branch switcher (github only):** a GitHub Project exposes a ref switcher. Each
+  ref is cached independently; switching to an already-cached ref is instant,
+  switching to a new ref triggers a build (clone that ref). `currentRef` defaults to
+  the repo's default branch (HEAD) on first add. "Pull latest" refreshes the
+  current ref. Local Projects have no ref dimension (content is whatever is on disk).
+- **Disk cache is GitHub-only**: `cache/<projectId>/<ref>/` (one cache per ref):
+  - `manifest.json` — `cacheVersion`, nav tree + per-doc metadata (Title, relative
+    path, headings/Sections for the TOC).
   - doc contents (markdown / html, keyed by sanitized relative path).
-  - `search-index.json` — serialized MiniSearch index.
+  - `search-index.json` — serialized per-Section MiniSearch index.
+- **Local Projects persist no cache.** On project-select they discover + parse +
+  build the nav tree and per-Section search index **in-memory**; the file-watcher
+  (E2) keeps that state current. This avoids any drift between cached metadata and
+  live content (single source of truth = the disk). `lastBuiltAt`/`docCount` in the
+  registry are recomputed on each open.
 
-The cache is what lets GitHub docs render after the temp clone is deleted.
+The disk cache exists precisely because the GitHub clone is deleted (ADR-0001);
+local Projects have no deleted source, so they need none.
 
 ### Build / rebuild pipeline (main process)
 
@@ -89,40 +126,160 @@ Emits progress events to the renderer over IPC so the UI can show stages.
    dir (`os.tmpdir()`).
 2. **Discover** — walk the tree for `.md` and `.html`, ignoring `node_modules`,
    `.git`, `dist`, and similar build/vendor dirs.
-3. **Parse** — for each doc, extract the title (first H1) and headings (H2/H3) for
-   the TOC; record the relative path.
+3. **Parse** — for each doc, extract the Title (first H1) and headings (H2/H3) for
+   the TOC; record the relative path; split the body into **Sections** at heading
+   boundaries (H1–H3).
 4. **Build nav tree** from folder structure.
-5. **Build search index** — MiniSearch over `{ title, path, content }`, with
-   markdown stripped to plain text for the `content` field.
+5. **Build search index** — index **one MiniSearch record per Section**:
+   `{ id, docPath, docTitle, headingId, headingText, depth, text }`, with markdown
+   stripped to plain text for `text`. Weight `headingText`, `docTitle`, and
+   `docPath` above body `text` so heading/filename matches rank above incidental
+   body mentions. Content before the first heading is an intro Section anchored to
+   the Document top.
 6. **Write cache**; for GitHub, **delete the temp clone**.
 7. **Update registry** (`lastBuiltAt`, `docCount`, `status`).
 
 - **Add project** triggers a first build.
 - **Rebuild** re-runs the full pipeline for an existing project.
 
+### Active-Project lifecycle
+
+Only the **selected** Project is "live." Selecting a **local** Project builds its
+in-memory nav tree + Section index and starts its file-watcher; switching away
+**tears both down**, freeing memory and OS watch handles; switching back re-indexes
+(brief spinner). Selecting a **github** Project reads its `currentRef` cache from
+disk — nothing to instantiate or tear down. On launch, E3 restores the last-selected
+Project and instantiates only that one. (A warm-index LRU is a possible Phase-2
+optimization if re-index latency ever matters.)
+
+### Project mutations
+
+- **Remove** purges the Project's disk cache (all refs) and registry entry behind a
+  confirm dialog ("Remove *name*? This deletes its local cache; the original source
+  is untouched."). The source directory/repo is never modified — only derived data.
+- **Editable settings** (from the Manage Projects view):
+  - **Name** — always editable; pure display label, no rebuild.
+  - **Trusted toggle** — re-render only (skips DOMPurify / loosens mermaid for that
+    Project); no rebuild. *(TODO-tracked; wiring the setting UI is in v1, behavior
+    may land with the TODO.)*
+  - **`docsSubpath`** (GitHub only) — editable; triggers a rebuild of the current
+    ref and an identity-collision check (it is part of GitHub identity, ADR-0002).
+  - **Theme** — per-Project Theme reference (default "Use global"); presentation-only,
+    applied instantly, no rebuild.
+  - **Ref management** stays in the branch switcher, not settings.
+  - **Source path/URL is NOT editable** in v1 — re-pointing changes identity; to
+    change a source, Remove the Project and Add a new one. Local Projects therefore
+    expose only Name + Trusted.
+- **Cancelable builds (v1):** the Add / Pull-latest modal has a Cancel that aborts
+  the `git` child process and removes the temp clone. Cleanup guarantees: the temp
+  clone lives in an OS temp dir removed in a `finally`; the cache is written to a
+  temp dir and atomic-renamed only on success, so a crash/quit/cancel mid-build
+  leaves the prior cache intact and any orphaned temp dir is swept on next launch. A
+  failed or canceled Add leaves **no** registry entry.
+
 ### Renderer UI
 
-- **Sidebar:** project dropdown + "Add project" + "Rebuild" buttons; a doc tree
-  (folders/files); a full-text search box with snippet results.
+- **Sidebar:** project dropdown + "Add project" + a Rebuild action labeled per type
+  ("Pull latest" for GitHub, "Reindex" for local); a doc tree; a full-text search
+  box with snippet results.
+- **Doc tree:** raw folder mirror of the discovered Documents (no collapsing in v1).
+  Each level is sorted **alphabetically by filename** so authors' numeric prefixes
+  (`00-`, `01-`…) order naturally. Each Document is **labeled by its H1 title** when
+  present, falling back to a prettified filename; the raw filename shows as a
+  tooltip/subtitle. Documents are always *sorted by filename* even when *labeled by
+  title*.
+- **Manage Projects view:** a dedicated full-pane view (also the home/empty state
+  when no Project is selected, including first run). Lists all Projects in a sortable
+  table with per-row actions (open, edit settings, delete) and the Add Project entry
+  point. The main pane renders either this view or a Document. Reachable from the
+  dropdown ("Manage projects…") and ⌘K.
+  - **Columns:** Name, Type (local/github), Source (path or `owner/repo`), Docs
+    (count), Last built (current ref for github; last index time for local), Status.
+  - **Sorting:** default Name ascending (case-insensitive). Sortable via header
+    click on Name, Type, Docs, and Last built (Source/Status are not sortable). The
+    chosen sort persists in app settings across relaunches.
 - **Add-project modal:** choose *Local Directory* (native dir picker via
   `dialog.showOpenDialog`) or *GitHub URL* (text input). Shows live build
   progress: cloning → discovered N docs → indexing → done.
 - **Main pane:** rendered doc with a sticky TOC and dark mode, mirroring the
   existing viewer aesthetic (purple accent; mermaid full-bleed/zoom/click-to-
   expand). `.html` docs render in a sandboxed `<iframe>`.
-- **Search:** clicking a result opens the doc and scrolls to / highlights the
-  match.
+- **Search:** results are **per Section** (one row per matching heading-delimited
+  chunk), shown as a flat ranked list with the Section's heading as the primary line
+  and the Document Title + folder path as the secondary line, plus a snippet. A big
+  Document yields multiple rows. Clicking a result opens the Document and scrolls to
+  / highlights that Section's heading anchor.
+
+### Theming
+
+Themes give each Project a visually distinct look so you always know which Project
+you're in.
+
+- **Resolution / precedence:** `project theme → global theme → built-in fallback`. A
+  global default theme applies app-wide; each Project may override it; the per-project
+  default is **"Use global."**
+- **Light/dark (hybrid):** a Theme always provides at least one palette (its `base`
+  mode, light or dark) and *optionally* a second variant. If both exist, the app
+  follows the OS `prefers-color-scheme` and picks the matching variant; if only one
+  exists, the Theme **pins** that appearance regardless of OS mode. The built-in
+  "Default" theme provides both and follows the OS (preserving today's behavior).
+
+- **Token schema** (per light/dark variant; versioned + extensible object):
+  - **Palette** — overrides for the existing renderer CSS custom properties
+    (`--bg, --fg, --muted, --border, --accent, --accent-soft, --code-bg,
+    --table-head, --diagram-ink, --diagram-bg`, …). Themes plug into the current
+    renderer with no new styling plumbing.
+  - **Content background** — image behind the Document reading area with
+    `position/size/repeat`, `opacity`, `blur`, and an auto-applied **readability
+    scrim** (semi-opaque layer between image and text) so body copy stays legible.
+  - **Chrome background** — image behind the app chrome (sidebar + top banner), same
+    knobs + scrim.
+  - **Fonts deferred to Phase 2** — the theme object is versioned so adding a `fonts`
+    key later is non-breaking.
+
+- **Theme library model.** Themes are reusable named objects in a library; the
+  global default and each Project reference a Theme **by id**, so editing a Theme
+  updates everywhere it's used. Ship **built-in Themes**: "Default" (today's
+  OS-following light/dark look) plus ~3 visually distinct seeds.
+- **Custom Themes via an in-app editor (v1).** A settings form with color pickers
+  bound to the palette tokens, image pickers for content/chrome backgrounds, the
+  opacity/blur/scrim sliders, and a **live preview**. Stored as versioned theme
+  objects in `userData/themes/*.json`.
+- **Image assets copied into app data.** Picking an image copies it into
+  `userData/themes/assets/` (hashed filename) so a Theme is self-contained and
+  survives the source file moving.
+- **Security boundary:** Theme images are always **user-provided local files, never
+  sourced from a Project's repo**, and Themes are app-side config (not repo content).
+  A malicious repo cannot ship or reference a Theme. Themes behave identically for
+  local and GitHub Projects.
+
+- **Selection & application.** The global default Theme is chosen in global settings;
+  the per-Project Theme is a field in the Project settings form (default "Use
+  global"). The registry stores `themeId?` per Project (absent = use global). Theme
+  changes are **presentation-only and applied instantly** by swapping CSS custom
+  properties + image layers — **never a rebuild** (Themes don't touch
+  discovery/indexing). No toolbar quick-switcher in v1 (settings-only); the editor's
+  live preview covers "try before committing."
 
 ### IPC API (preload `window.api`)
 
 - `listProjects(): Project[]`
-- `addProject({ type, source, name? }): Project` — triggers a build
-- `removeProject(id): void`
-- `rebuildProject(id): void`
+- `addProject({ type, source, name?, ref?, docsSubpath? }): Project` — triggers a build
+- `removeProject(id): void` — purges cache (all refs) + registry entry
+- `updateProjectSettings(id, { name?, trusted?, docsSubpath?, themeId? }): Project` —
+  `docsSubpath` change triggers a rebuild + collision check; others are instant
+- `rebuildProject(id): void` — "Pull latest" (github) / "Reindex" (local)
+- `cancelBuild(id): void` — abort in-flight clone/build, clean up temp
+- `listRefs(id): RefInfo[]` / `switchRef(id, ref): void` / `addRef(id, ref): void` /
+  `removeRef(id, ref): void` — github branch switcher
 - `getProjectTree(id): NavTree`
 - `getDoc(id, relativePath): { kind: 'md' | 'html', content: string }`
-- `search(id, query): SearchResult[]`
+- `search(id, query): SearchResult[]` — per-Section results
+- `getSettings() / setSettings({ globalThemeId?, projectSort? })` — app-global config
+- `listThemes() / saveTheme(theme) / deleteTheme(id)` — theme library CRUD
 - `pickDirectory(): string | null` — native dir picker
+- `pickThemeImage(): string | null` — native file picker; copies into
+  `userData/themes/assets/` and returns the hashed asset ref
 - `onBuildProgress(cb)` — streamed pipeline progress events
 
 ## Error handling
@@ -181,8 +338,15 @@ doc-viewer/
 Mode: SELECTIVE EXPANSION · Approach A + live local reads · Verdict: READY TO
 IMPLEMENT (no critical gaps).
 
-**Scope added:** E2 live file-watch (local), E3 session memory / deep-links,
-E4 ⌘K command palette.
+**Scope added (deep-review):** E2 live file-watch (local), E3 session memory /
+deep-links, E4 ⌘K command palette.
+
+**Scope added (grill-with-docs):** GitHub branch switcher (ADR-0002), per-Section
+search, in-memory local indexing, active-Project teardown, cancelable builds, the
+**Manage Projects view** (sortable table, editable settings, delete), and
+**Theming** (global + per-Project, palette + background images, in-app editor;
+app-side per ADR-0003). See `CONTEXT.md` for the domain glossary and `docs/adr/` for
+0001–0003.
 
 **Security (the app renders untrusted GitHub repos — these are mandatory):**
 - Sanitize all marked output with **DOMPurify** before `innerHTML`.
