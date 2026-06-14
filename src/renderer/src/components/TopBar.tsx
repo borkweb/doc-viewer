@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Project } from '@shared/types'
 import type { TocEntry } from '../lib/render'
 
@@ -22,6 +22,11 @@ export default function TopBar(props: Props): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+
+  const sortedProjects = useMemo(
+    () => projects.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
+    [projects]
+  )
 
   // Contents is only meaningful when a document with headings is open.
   const hasToc = Boolean(docTitle) && toc.length > 0
@@ -68,7 +73,7 @@ export default function TopBar(props: Props): React.JSX.Element {
           aria-label="Project"
         >
           <option value="" disabled>Select a project…</option>
-          {projects.map((p) => (
+          {sortedProjects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
