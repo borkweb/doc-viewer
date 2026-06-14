@@ -43,3 +43,24 @@ Adopted plan corrections (straight bugs from the deep review — no council need
 **Build & verdict (Codex offload, architect-judged 2026-06-14):** implementation offloaded to a Codex builder (architect/builder split via `/bork:offload`); 9 commits on `plan-3-manage-projects`. Architect re-ran every frozen gate RAW: `bun test` 115 pass / 0 fail, `bun run typecheck` exit 0, `bunx electron-vite build` exit 0; spot-checked the council invariants in code (build-in-progress guard, `active?.id===id` guards, self-excluding collision, error branching). **Verdict: ACCEPT.** Merged to `main` (4b5d7d5) and pushed.
 
 ---
+
+## Plan 4 — File-watch (E2) · Session memory (E3) · Command palette (E4)
+
+### Scope & decisions (resolved via dual council — Claude `/bork:council` + Codex, 2026-06-14)
+
+Both councils independently endorsed the full lead slate (9/9). Decomposition: **one Plan 4, three independently-shippable slice-PRs, build order E3 → E4 → E2** (E3 settles the renderer persistence seam; E4 is pure-renderer; E2 last — isolated but platform-risky, and manual Reindex already exists as a fallback).
+
+| # | Decision | Call | Why |
+|---|----------|------|-----|
+| D4-1 | File-watch recursion (E2) | **`fs.watch(root,{recursive:true})` + Linux-degradation note** | darwin-primary target; can't vendor chokidar (no-install); hand-rolled per-dir watch is handle-cost complexity for a non-target OS. Manual Reindex remains. |
+| D4-2 | Reindex granularity (E2) | **Debounced full reindex (~300ms trailing, leading-edge suppressed)** | Reuses the tested `selectLocal` path; incremental patching is premature. Collapses atomic-save bursts (editors fire `rename`, FSEvents coalesces). |
+| D4-3 | Open doc changes/deletes under watch (E2, UX) | **Silent re-render on change (preserve scroll, debounced) + gentle "This document was removed." notice on delete-of-open** | Matches "always fresh"; a silent delete would feel broken. |
+| D4-4 | Session persistence location (E3) | **Renderer `localStorage` (`lib/session.ts`)** | Matches the existing theme persistence; zero IPC; scroll updates are high-frequency. Main `userData/session.json` + settings IPC noted as a future consolidation. |
+| D4-5 | Session scope (E3, UX) | **Project + last doc + scroll, per project — scroll restore best-effort via nearest-heading anchor (not raw pixel offset), fail-soft silent** | Both councils flagged that E2's live re-render invalidates a saved pixel offset; a heading anchor is resilient and reuses existing anchor machinery. Degrade to project+doc acceptable if it proves fragile. |
+| D4-6 | Restore-on-launch (E3, UX) | **Auto-restore, guarded fail-soft** to home/Manage covering: project missing/unavailable, doc gone from tree, build stale/in-progress, first-run | Auto-restore is the product promise; guard must cover all four cases (not just "project missing"). |
+| D4-7 | Palette scope v1 (E4, UX) | **Projects + current-project docs + commands (tiers 1-2); defer cross-project cached github docs** | Tiers 1-2 are already in renderer state; tier 3 needs a new manifest-enumeration IPC for speculative value. |
+| D4-8 | Palette keybinding (E4) | **Renderer App-level `keydown` ⌘K/Ctrl+K, `preventDefault`, composes with existing Escape handlers, fires from input fields** | `globalShortcut` is system-wide (fires unfocused) — wrong for an in-app palette. First app-level key handler — mind Escape precedence with Settings/Add/Manage modals. |
+
+_Spec, design-review, deep-review, and per-slice build verdicts append below as they land._
+
+---
