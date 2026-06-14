@@ -158,14 +158,18 @@ describe('watcher lifecycle (projectService)', () => {
     const wa = fakeWatch()
     const wb = fakeWatch()
     let releaseRead!: () => void
+    let armed = false
     let blocked = false
     const gate = new Promise<void>((resolve) => { releaseRead = resolve })
     const readFileFn = (async (path, encoding) => {
-      blocked = true
-      await gate
+      if (armed) {
+        blocked = true
+        await gate
+      }
       return readFile(path, encoding)
     }) as typeof readFile
     await selectProject(a, { watchFn: wa.fn, debounceMs: 10, readFileFn })
+    armed = true
     wa.fire()
     await delay(15)
     expect(blocked).toBe(true)
@@ -174,6 +178,37 @@ describe('watcher lifecycle (projectService)', () => {
     await delay(15)
     await expect(getDoc(b, 'a.md')).resolves.toBeTruthy()
     expect(pushes.some((payload) => payload.projectId === a)).toBe(false)
+  })
+
+  it('a slower overlapping local select cannot overwrite the newer active project (MF1)', async () => {
+    const a = await localProject()
+    const b = await localProject()
+    const wa = fakeWatch()
+    const wb = fakeWatch()
+    let releaseRead!: () => void
+    let startedRead!: () => void
+    const gate = new Promise<void>((resolve) => { releaseRead = resolve })
+    const started = new Promise<void>((resolve) => { startedRead = resolve })
+    let marked = false
+    const readFileFn = (async (path, encoding) => {
+      if (!marked) {
+        marked = true
+        startedRead()
+        await gate
+      }
+      return readFile(path, encoding)
+    }) as typeof readFile
+
+    const first = selectProject(a, { watchFn: wa.fn, debounceMs: 20, readFileFn })
+    await Promise.race([started, delay(20)])
+    expect(marked).toBe(true)
+    await selectProject(b, { watchFn: wb.fn, debounceMs: 20 })
+    releaseRead()
+    await first
+
+    await expect(getDoc(b, 'a.md')).resolves.toBeTruthy()
+    await expect(getDoc(a, 'a.md')).rejects.toThrow()
+    expect(wa.closes()).toBe(0)
   })
 
   it('re-selecting tears down the previous watcher and stopWatch is idempotent (MF2)', async () => {

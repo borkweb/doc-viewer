@@ -106,9 +106,16 @@ async function buildLocalActive(
   }
 }
 
-async function selectLocal(project: Project & { type: 'local' }): Promise<{ tree: NavNode[]; docCount: number }> {
-  const built = await buildLocalActive(project)
-  active = built.next
+async function selectLocal(
+  project: Project & { type: 'local' },
+  deps: SelectDeps,
+  gen: ProjectGenerationToken
+): Promise<{ tree: NavNode[]; docCount: number }> {
+  const built = await buildLocalActive(project, deps.readFileFn)
+  if (generation === gen) {
+    active = built.next
+    startProjectWatch(project, deps)
+  }
   return { tree: built.tree, docCount: built.docCount }
 }
 
@@ -173,11 +180,10 @@ export async function selectProject(id: string, deps: SelectDeps = {}): Promise<
   if (!project) throw new Error(`Project not found: ${id}`)
   stopWatch()
   generation += 1
+  const gen = generation
   active = null // tear down previous (active-Project lifecycle)
   if (project.type === 'github') return loadGithubRef(project, project.currentRef, noProgress, {})
-  const result = await selectLocal(project)
-  startProjectWatch(project, deps)
-  return result
+  return selectLocal(project, deps, gen)
 }
 
 // ── add github (build first ref) ────────────────────────────────────────────
@@ -252,7 +258,8 @@ export async function rebuildProject(
   const project = await getProject(id)
   if (!project) throw new Error(`Project not found: ${id}`)
   if (project.type === 'local') {
-    await selectLocal(project) // Reindex: re-walk live content
+    const built = await buildLocalActive(project)
+    if (active?.id === id) active = built.next
     return
   }
   const controller = new AbortController()
