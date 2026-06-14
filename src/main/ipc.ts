@@ -5,7 +5,7 @@ import { listProjects, addLocalProject, removeProject, updateProject } from './r
 import {
   selectProject, getDoc, search,
   addGithubProject, rebuildProject, cancelBuild,
-  listRefs, switchRef, addRef, removeRef
+  listRefs, switchRef, addRef, removeRef, setDocsSubpath
 } from './projectService'
 import { purgeProjectCache } from './cache'
 
@@ -33,6 +33,9 @@ export function registerIpc(): void {
       updateProject(id, patch)
   )
   ipcMain.handle('projects:rebuild', (e, id: string) => rebuildProject(id, progressTo(e)))
+  ipcMain.handle('projects:setDocsSubpath', (e, id: string, subpath: string) =>
+    setDocsSubpath(id, subpath, progressTo(e))
+  )
   ipcMain.handle('projects:cancelBuild', (_e, id: string) => cancelBuild(id))
   ipcMain.handle('projects:listRefs', (_e, id: string) => listRefs(id))
   ipcMain.handle('projects:switchRef', (e, id: string, ref: string) =>

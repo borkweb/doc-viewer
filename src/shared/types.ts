@@ -125,6 +125,7 @@ export interface IpcApi {
     patch: { name?: string; docsSubpath?: string; themeId?: ThemeChoice }
   ): Promise<Project>
   rebuildProject(id: string): Promise<void> // "Pull latest" (github) / "Reindex" (local)
+  setDocsSubpath(id: string, subpath: string): Promise<{ tree: NavNode[]; docCount: number }>
   cancelBuild(id: string): Promise<void>
   listRefs(id: string): Promise<RefInfo[]>
   switchRef(id: string, ref: string): Promise<{ tree: NavNode[]; docCount: number }>

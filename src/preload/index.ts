@@ -8,6 +8,7 @@ const api: IpcApi = {
   removeProject: (id) => ipcRenderer.invoke('projects:remove', id),
   updateProjectSettings: (id, patch) => ipcRenderer.invoke('projects:updateSettings', id, patch),
   rebuildProject: (id) => ipcRenderer.invoke('projects:rebuild', id),
+  setDocsSubpath: (id, subpath) => ipcRenderer.invoke('projects:setDocsSubpath', id, subpath),
   cancelBuild: (id) => ipcRenderer.invoke('projects:cancelBuild', id),
   listRefs: (id) => ipcRenderer.invoke('projects:listRefs', id),
   switchRef: (id, ref) => ipcRenderer.invoke('projects:switchRef', id, ref),
