@@ -91,6 +91,22 @@ export default function Settings({ settings, onChange, onClose }: Props): React.
             />
           </div>
         </div>
+        <footer className="modal-footer">
+          <span>
+            Created by{' '}
+            <a href="https://borkweb.com" target="_blank" rel="noreferrer">Matthew Batchelder</a>
+          </span>
+          <a
+            className="credit-gh"
+            href="https://github.com/borkweb/doc-viewer"
+            target="_blank"
+            rel="noreferrer"
+            title="github.com/borkweb/doc-viewer"
+            aria-label="View doc-viewer on GitHub"
+          >
+            <i className="fa-brands fa-github" aria-hidden="true" />
+          </a>
+        </footer>
       </div>
     </div>
   )

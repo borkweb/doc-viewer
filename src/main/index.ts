@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpc } from './ipc'
 
@@ -16,6 +16,13 @@ function createWindow(): void {
   })
 
   win.on('ready-to-show', () => win.show())
+
+  // Open http(s) links (e.g. the Settings credits) in the system browser
+  // instead of navigating the app window away from the renderer.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
 
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
