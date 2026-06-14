@@ -124,4 +124,20 @@ Design review hardened the gallery spec (IA/2×2 grid, token-rendered swatches, 
 | D5-11 | TF-3 Per-project control form | **(a) `<select>` (Use global + theme list) + a small swatch chip beside the selected option** | EditProjectModal is assignment altitude, not browse; a mini-gallery duplicates the global picker and dominates a dense form. The chip closes the recognition gap cheaply. |
 | D5-12 | TF-4 Default card | **(a) One card, split swatch, labeled "Default — mixed" + tooltip** | The default is genuinely one pinned mixed dark-chrome/light-document theme; two cards would label one real theme as two non-independent choices and inflate the set. |
 
-_Implementation plan, deep-review, and build verdict append below as they land._
+### Engineering deep-review (resolved via dual council, 2026-06-14)
+
+Deep-review verdict: **READY-WITH-FIXES (7/10)** — 4 mechanical must-fix bugs + 2 decision points (both councils confirmed both leads, adding implementation guardrails).
+
+| # | Decision | Call | Why |
+|---|----------|------|-----|
+| D5-13 | P5-DP1 — gallery keyboard nav | **(b) Roving-focus-only** — arrows move focus + a roving marker; commit only on click/Enter/Space. **`aria-checked` tracks the COMMITTED theme, focus roves independently** | Commit-on-arrow (standard ARIA selection-follows-focus) would recolor the whole app on every keypress — the exact flicker D5-9 rejected for hover; the spec keyboard table already says arrows=focus, Enter/Space=commit. Guardrail: don't let AT announce a roved-but-uncommitted card as selected. |
+| D5-14 | P5-DP2 — legacy themeId cleanup | **(a) Write-time only** (drop the stale enum on the next `updateProjectSettings`); note a deferred one-shot versioned migration as the eventual closer | Stale `'dark'\|'light'\|'system'` is inert (resolves to Default); a read-path write-on-read violates "reads don't mutate" for cosmetic tidiness. Pre-commit to a versioned migration only if the legacy enum is later removed from the type. |
+
+Adopted must-fix bugs (deep review — folded into the plan):
+- **MF1** — T1 isn't typecheck-green: move the `editProjectModal.test.ts` `ThemeChoice→string` annotation changes from T4 into T1 (the widened `onSetTheme` param breaks the test's typed capture arrays otherwise).
+- **MF2** — T4's "does not emit when nothing changed" test will FAIL (seed `themeId:'dark'` → `isKnown` false → seeds `''` → save fires `undefined`). Re-seed to a valid id / `undefined`, or assert the legacy-migration-on-save behavior + rename.
+- **MF3** — T3 gallery tooltip test uses a descendant selector (`def.querySelector('[title]')`) for a self-attribute; assert `def.getAttribute('title')`.
+- **MF4** — Launch-flash regression: the theme-apply effect must be `useLayoutEffect` (not `useEffect`) so `data-theme` + overrides are written before first paint (else the document pane flashes dark for one frame under Default).
+- Nice-to-haves folded: comment pinning `BASE_SWATCH` to the styles.css source; `BUILTIN_THEME_IDS` cross-ref comment in ipc.ts.
+
+_Build verdict appends below when it lands._
