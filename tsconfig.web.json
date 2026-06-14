@@ -13,5 +13,5 @@
     "baseUrl": ".",
     "paths": { "@shared/*": ["src/shared/*"] }
   },
-  "include": ["src/renderer/src", "src/shared", "src/main/pipeline/parse.ts", "tests/render.test.ts"]
+  "include": ["src/renderer/src", "src/shared", "src/main/pipeline/parse.ts", "tests/render.test.ts", "tests/addProjectModal.test.ts", "tests/branchSwitcher.test.ts"]
 }
