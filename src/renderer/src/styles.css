@@ -501,3 +501,114 @@ body {
 .status-bar .branch-switcher .topbar-select { height: 20px; max-width: 160px; font-size: var(--text-sm); }
 .status-bar .branch-switcher .icon-button { height: 20px; width: 20px; }
 .status-bar .branch-switcher .branch-input { height: 20px; width: 110px; padding: 1px 6px; font-size: var(--text-sm); }
+
+/* ── Manage Projects view ─────────────────────────────────────────────── */
+.manage-projects {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  overflow-y: auto; padding: var(--space-4); color: var(--fg);
+}
+.manage-projects-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); margin-bottom: var(--space-3);
+}
+.manage-projects-header h2 {
+  margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold);
+}
+.manage-projects-header button,
+.manage-projects-toolbar button,
+.manage-project-row button {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--muted); font: inherit;
+  min-height: 28px; padding: 0 var(--space-2); cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.manage-projects-header button:hover,
+.manage-projects-toolbar button:hover,
+.manage-project-row button:hover:not(:disabled) {
+  background: var(--surface-alt); color: var(--fg); border-color: var(--border-strong);
+}
+.manage-projects-header button:focus-visible,
+.manage-projects-toolbar input:focus-visible,
+.manage-projects-toolbar select:focus-visible,
+.manage-project-row button:focus-visible,
+.manage-project-row input:focus-visible,
+.manage-project-row select:focus-visible {
+  outline: none; box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.manage-projects-toolbar {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.manage-projects-toolbar input,
+.manage-projects-toolbar select,
+.manage-project-row input,
+.manage-project-row select {
+  min-height: 28px; padding: 4px 8px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface); color: var(--fg);
+  font: inherit;
+}
+.manage-projects-toolbar input { width: min(320px, 45%); }
+.manage-projects-list { display: flex; flex-direction: column; min-height: 0; }
+.manage-project-row {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-bottom: 1px solid var(--border);
+  background: var(--surface); transition: background var(--transition), opacity var(--transition-slow);
+}
+.manage-project-row:hover { background: var(--surface-alt); }
+.manage-project-primary {
+  display: flex; align-items: center; gap: var(--space-3); min-width: 0;
+}
+.manage-project-primary [data-action="select"] {
+  flex: 0 1 240px; min-width: 120px; padding: 0; border: 0; background: none;
+  color: var(--fg); font-size: var(--text-base); font-weight: var(--weight-semibold);
+  text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.manage-project-primary [data-action="select"]:hover:not(:disabled) {
+  color: var(--accent); background: none;
+}
+.manage-project-primary code.project-source {
+  flex: 1 1 auto; min-width: 160px; color: var(--muted); font-family: var(--font-mono);
+  font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.manage-project-primary [data-chip] {
+  flex: 0 0 auto; padding: 1px 6px; border-radius: var(--radius-sm);
+  background: var(--surface-alt); border: 1px solid var(--border);
+  color: var(--muted); font-size: var(--text-xs); text-transform: lowercase;
+}
+.project-count {
+  flex: 0 0 auto; color: var(--faint); font-size: var(--text-sm);
+}
+.manage-project-actions {
+  display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.manage-project-actions [data-role="theme-select"] { font-size: var(--text-sm); }
+.docs-subpath-edit { display: inline-flex; align-items: center; gap: var(--space-1); }
+.docs-subpath-edit input { width: 220px; font-size: var(--text-sm); }
+.delete-confirmation {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  color: var(--fg); font-size: var(--text-sm);
+}
+.project-status {
+  margin: 0; color: var(--muted); font-size: var(--text-sm);
+}
+.manage-project-row button:disabled,
+.manage-project-row input:disabled,
+.manage-project-row select:disabled {
+  cursor: not-allowed; opacity: 0.55;
+}
+
+@keyframes manage-row-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-2px); }
+}
+.manage-project-row.is-removing { animation: manage-row-out 200ms var(--ease-out) forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .manage-project-row,
+  .manage-projects-header button,
+  .manage-projects-toolbar button,
+  .manage-project-row button {
+    transition: none;
+  }
+  .manage-project-row.is-removing { animation: none; }
+}
