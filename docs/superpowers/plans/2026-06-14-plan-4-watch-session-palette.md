@@ -18,13 +18,13 @@
 - **`src/renderer/src/components/DocView.tsx`** renders sanitized markdown imperatively into `<div ref={ref} />`, and only scrolls **after** `enhanceDiagrams(container).then(...)`. It keeps the live `scrollToId` in `targetRef` (a ref, read by both effects without re-running the render effect). E3 adds a **parallel** `restoreHeadingId` path inside that same `.then`; E2 adds a `reloadNonce` to the `getDoc` effect deps so a live re-index forces a refetch. **DocView's scroll container is the parent `<main className="content">`** (`styles.css` `.content { overflow-y: auto }`), *not* DocView's own div — App attaches the scroll listener to `.content` via a ref.
 - **`src/main/projectService.ts`** has module-level `active: ActiveProject | null`, `inFlight` map, `BuildDeps = { spawnFn? }`, `noProgress`, `selectLocal(project)`, `loadGithubRef`, `selectProject(id)` (sets `active = null` then branches local/github), `rebuildProject`, `setDocsSubpath`, the `active?.id === id` guard pattern (in `rebuildProject`). E2 adds an injectable watcher lifecycle + an `index:changed` sink here.
 - **`src/main/index.ts`** builds the single `BrowserWindow` in `createWindow()` and already uses `win.webContents` (for `setWindowOpenHandler`). E2 captures that `webContents` into the projectService sink and clears it on `'closed'`.
-- **`src/main/ipc.ts`** streams `build:progress` via `progressTo(e)` (`e.sender.send`, guarded by `e.sender.isDestroyed()`). E2's `index:changed` does **not** ride an invoke event (a watcher fire has no `e`) — it is pushed from `index.ts` through the captured `webContents`, so **ipc.ts is not modified** by E2.
+- **`src/main/ipc.ts`** streams `build:progress` via `progressTo(e)` (`e.sender.send`, guarded by `e.sender.isDestroyed()`). E2's `index:changed` does **not** ride an invoke event (a watcher fire has no `e`) — it is pushed from `index.ts` through the captured `webContents`, so the push channel does not touch ipc.ts. ipc.ts **is** modified once by E2 (MF3): the `projects:remove` handler calls `releaseIfActive(id)` so deleting the active local project tears down its watcher before/after `removeProject`.
 - **`src/preload/index.ts`** exposes `onBuildProgress(cb)` (returns an unsubscribe). E2 mirrors it as `onIndexChanged(cb)`.
 - **`src/shared/types.ts`** is the single source of truth for shared types; `ThemeChoice`/`THEME_CHOICES` already live here. E2 adds an `IndexChanged` payload + `IpcApi.onIndexChanged`.
 - **`src/renderer/src/lib/theme.ts`** is the persistence precedent E3's `lib/session.ts` mirrors verbatim (localStorage, try/catch fail-soft, typed validator). It uses the bare `localStorage` global.
 - **`src/renderer/src/components/BranchSwitcher.tsx`** renders a `<select data-role="ref-select">` inline in the status bar (passed into `StatusBar` via App's `branchSwitcher` prop). E4's "Switch ref…" command **focuses** this select (it does not switch refs itself) via a new `focusNonce` prop.
 - **`src/renderer/src/components/TopBar.tsx`** / **`StatusBar.tsx`** / **`Settings.tsx`** each carry their own Escape/outside-click handlers. E4's palette Escape calls `stopPropagation()` (topmost-surface-only) and ⌘K is **suppressed when a modal is open** (`addOpen || settingsOpen`).
-- **Renderer test harness (critical):** tests run under `bun test` with `tests/setup-dom.ts` (jsdom) preloaded via `bunfig.toml`. Component tests must (1) render via `react-dom/client` `createRoot` + `act` + `React.createElement` (never call the component as a function), (2) dispatch DOM events with `new window.Event(...)` / `new window.KeyboardEvent(...)`, (3) set controlled-input values via the prototype `value` setter then dispatch an `input` event, and (4) be listed in `tsconfig.web.json` `"include"` and `tsconfig.node.json` `"exclude"`. See `tests/addProjectModal.test.ts` / `tests/appDeleteActive.test.ts`. **`setup-dom.ts` does not register `CSS` or `localStorage` as globals** — E3 Task 1 adds `'CSS'` to the registration list (jsdom provides `window.CSS.escape`, which DocView's restore uses) and the session/restore tests install a deterministic in-memory `localStorage` stub in `beforeEach`.
+- **Renderer test harness (critical):** tests run under `bun test` with `tests/setup-dom.ts` (jsdom) preloaded via `bunfig.toml`. Component tests must (1) render via `react-dom/client` `createRoot` + `act` + `React.createElement` (never call the component as a function), (2) dispatch DOM events with `new window.Event(...)` / `new window.KeyboardEvent(...)`, (3) set controlled-input values via the prototype `value` setter then dispatch an `input` event, and (4) be listed in `tsconfig.web.json` `"include"` and `tsconfig.node.json` `"exclude"`. See `tests/addProjectModal.test.ts` / `tests/appDeleteActive.test.ts`. **`setup-dom.ts` does not register `CSS` or `localStorage` as globals** — E3 Task 1 adds `'CSS'` to the registration list (jsdom provides `window.CSS.escape`, which DocView's restore uses) and the session/restore/palette/indexChanged tests install a deterministic in-memory `localStorage` stub via the shared `tests/helpers/localStorage.ts` `stubLocalStorage()` helper in `beforeEach` and **restore the original property descriptor in `afterEach`** (so a stub never leaks across files/tests).
 - **Commands:** `bun test <file>`, `bun run typecheck` (runs `typecheck:node` then `typecheck:web`), `bunx electron-vite build`. Run `bun test <file>` per task (don't background a full-suite run mid-task).
 
 ---
@@ -37,6 +37,7 @@ CREATED
   src/renderer/src/components/CommandPalette.tsx   # ⌘K palette: tiers, fuzzy rank, keyboard/a11y
   src/renderer/src/lib/fuzzy.ts              # hand-rolled prefix-favoring subsequence scorer (single score)
   src/main/watcher.ts                        # fs.watch (injectable) + 300ms trailing/leading-suppressed debounce; Linux degrade
+  tests/helpers/localStorage.ts              # shared stubLocalStorage() — descriptor save/restore (web tsconfig)
   tests/session.test.ts                      # E3 unit: load/save/validate + pickAnchor (web tsconfig)
   tests/sessionRestore.test.ts               # E3 App-level restore guards (web tsconfig)
   tests/fuzzy.test.ts                        # E4 scorer unit (web tsconfig)
@@ -53,10 +54,11 @@ MODIFIED
   src/renderer/src/components/BranchSwitcher.tsx  # focusNonce prop → focus ref <select> (E4)
   src/shared/types.ts                        # IndexChanged payload + IpcApi.onIndexChanged (E2)
   src/preload/index.ts                       # onIndexChanged bridge (E2)
-  src/main/index.ts                          # capture webContents → setIndexSink; clear on 'closed' (E2)
-  src/main/projectService.ts                 # setIndexSink + watcher lifecycle + debounced reindex + active-id guard (E2)
-  tsconfig.web.json                          # include new renderer test files
-  tsconfig.node.json                         # exclude new renderer test files
+  src/main/index.ts                          # capture webContents → setIndexSink; stopWatch + clear sink on 'closed' (E2)
+  src/main/projectService.ts                 # setIndexSink + watcher lifecycle + generation-gated reindex + stopWatch/releaseIfActive (E2)
+  src/main/ipc.ts                            # projects:remove calls releaseIfActive(id) (E2 / MF3)
+  tsconfig.web.json                          # include new renderer test files + tests/helpers/localStorage.ts
+  tsconfig.node.json                         # exclude new renderer test files + tests/helpers/localStorage.ts
 ```
 
 ---
@@ -69,13 +71,41 @@ MODIFIED
 
 **Files:**
 - Create: `src/renderer/src/lib/session.ts`
+- Create: `tests/helpers/localStorage.ts`
 - Create: `tests/session.test.ts`
 - Modify: `tests/setup-dom.ts`
 - Modify: `tsconfig.web.json`, `tsconfig.node.json`
 
-- [ ] **Step 1: Register the new renderer test file with the TypeScript projects.**
+- [ ] **Step 1: Register the new renderer test file + the shared test helper with the TypeScript projects.**
 
-  In `tsconfig.web.json`, append `"tests/session.test.ts"` to `"include"`. In `tsconfig.node.json`, append `"tests/session.test.ts"` to `"exclude"`.
+  In `tsconfig.web.json`, append `"tests/session.test.ts"` and `"tests/helpers/localStorage.ts"` to `"include"`. In `tsconfig.node.json`, append `"tests/session.test.ts"` and `"tests/helpers/localStorage.ts"` to `"exclude"`. (The helper references the DOM `Storage` type, which the node project's `lib` excludes — it is web-only, like the renderer test files.)
+
+- [ ] **Step 1b: Create the shared localStorage stub helper** `tests/helpers/localStorage.ts`. It installs a deterministic in-memory `localStorage` and returns a teardown that restores the **original property descriptor** (or deletes it if none existed) — every test that uses it MUST call the teardown in `afterEach` so a stub never leaks across files/tests (D4-15):
+
+```ts
+// Shared deterministic localStorage stub for renderer tests. setup-dom.ts does NOT
+// register a localStorage global; session.ts/theme.ts use the bare global. A test calls
+// stubLocalStorage() (optionally seeding 'curator.session') and MUST invoke the returned
+// teardown in afterEach to restore the original global.
+export function stubLocalStorage(seed?: unknown): () => void {
+  const prior = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  const store = new Map<string, string>()
+  if (seed !== undefined) store.set('curator.session', JSON.stringify(seed))
+  const stub = {
+    getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
+    setItem: (k: string, v: string) => { store.set(k, String(v)) },
+    removeItem: (k: string) => { store.delete(k) },
+    clear: () => store.clear(),
+    key: () => null,
+    get length() { return store.size }
+  } as unknown as Storage
+  Object.defineProperty(globalThis, 'localStorage', { value: stub, configurable: true, writable: true })
+  return () => {
+    if (prior) Object.defineProperty(globalThis, 'localStorage', prior)
+    else delete (globalThis as { localStorage?: unknown }).localStorage
+  }
+}
+```
 
 - [ ] **Step 2: Add the `CSS` global to the jsdom test harness.** In `tests/setup-dom.ts`, add `'CSS'` to the registration array (jsdom provides `window.CSS.escape`, which DocView's restore path calls; without it the App-level tests that render DocView throw `ReferenceError: CSS is not defined`). Change the array so it includes `'CSS'`:
 
@@ -111,21 +141,15 @@ for (const key of [
 - [ ] **Step 3: Write the failing test** `tests/session.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { loadSession, saveSession, pickAnchor, type SessionState } from '../src/renderer/src/lib/session'
+import { stubLocalStorage } from './helpers/localStorage'
 
-// Deterministic in-memory localStorage (setup-dom.ts does not register one).
-beforeEach(() => {
-  const store = new Map<string, string>()
-  ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
-    getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
-    setItem: (k: string, v: string) => { store.set(k, String(v)) },
-    removeItem: (k: string) => { store.delete(k) },
-    clear: () => store.clear(),
-    key: () => null,
-    length: 0
-  } as unknown as Storage
-})
+// Deterministic in-memory localStorage (setup-dom.ts does not register one); the
+// afterEach teardown restores the original global so the stub never leaks.
+let restoreLs: () => void
+beforeEach(() => { restoreLs = stubLocalStorage() })
+afterEach(() => { restoreLs() })
 
 describe('session load/save', () => {
   it('returns an empty state when nothing is stored', () => {
@@ -265,7 +289,7 @@ export function pickAnchor(headings: { id: string; top: number }[], scrollTop: n
 - [ ] **Step 8: Commit.**
 
 ```bash
-git add src/renderer/src/lib/session.ts tests/session.test.ts tests/setup-dom.ts tsconfig.web.json tsconfig.node.json
+git add src/renderer/src/lib/session.ts tests/helpers/localStorage.ts tests/session.test.ts tests/setup-dom.ts tsconfig.web.json tsconfig.node.json
 git commit -m "feat(session): localStorage session store + pure nearest-heading anchor"
 ```
 
@@ -340,11 +364,12 @@ git commit -m "feat(docview): parallel restoreHeadingId scroll path (post-enhanc
 - [ ] **Step 2: Write the failing test** `tests/sessionRestore.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import App from '../src/renderer/src/App'
 import type { Project, NavNode } from '../src/shared/types'
+import { stubLocalStorage as installLocalStorage } from './helpers/localStorage'
 
 let container: HTMLDivElement
 let root: Root
@@ -352,16 +377,11 @@ let root: Root
 const A: Project = { id: 'a', name: 'Alpha', type: 'local', source: '/tmp/a', addedAt: 'now', status: 'ok', docCount: 1 }
 const tree: NavNode[] = [{ type: 'doc', name: 'r.md', title: 'R', path: 'r.md', kind: 'md' }]
 
-function stubLocalStorage(seed?: unknown): void {
-  const store = new Map<string, string>()
-  if (seed !== undefined) store.set('curator.session', JSON.stringify(seed))
-  ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
-    getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
-    setItem: (k: string, v: string) => { store.set(k, String(v)) },
-    removeItem: (k: string) => { store.delete(k) },
-    clear: () => store.clear(), key: () => null, length: 0
-  } as unknown as Storage
-}
+// Seed via the shared helper and track the teardown so afterEach restores the original
+// localStorage descriptor (D4-15). Call sites keep using stubLocalStorage(seed) below.
+let restoreLs: () => void = () => {}
+function stubLocalStorage(seed?: unknown): void { restoreLs(); restoreLs = installLocalStorage(seed) }
+afterEach(() => { restoreLs(); restoreLs = () => {} })
 
 function stubApi(projects: Project[], over: Partial<Window['api']> = {}): void {
   ;(window as unknown as { api: Partial<Window['api']> }).api = {
@@ -456,7 +476,13 @@ import { loadSession, saveSession, pickAnchor, type SessionState } from './lib/s
 ```tsx
   const [restoreHeadingId, setRestoreHeadingId] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement>(null)
-  const sessionRef = useRef<SessionState>(loadSession())
+  // Lazy initializer: read localStorage exactly once. (A bare `useRef(loadSession())`
+  // evaluates loadSession() — and re-reads localStorage — on EVERY render; `useState`
+  // with a function initializer runs it only on the first render.) The ref mirrors the
+  // loaded object so the capture/restore code can mutate it in place.
+  const [initialSession] = useState<SessionState>(loadSession)
+  const sessionRef = useRef<SessionState>(initialSession)
+  const didRunRef = useRef(false) // StrictMode dev double-invoke latch (MF5)
 ```
 
   **Replace** the mount effect `useEffect(() => { void refreshProjects() }, [refreshProjects])` with a combined load-then-restore launch effect (this avoids the empty-first-render race — restore must see the loaded project list, not the initial `[]`):
@@ -464,6 +490,8 @@ import { loadSession, saveSession, pickAnchor, type SessionState } from './lib/s
 ```tsx
   // Launch: load projects, then attempt session restore (guarded fail-soft to home).
   useEffect(() => {
+    if (didRunRef.current) return // React.StrictMode double-invokes effects in dev — run the restore exactly once
+    didRunRef.current = true
     void (async () => {
       const list = await window.api.listProjects()
       setProjects(list)
@@ -875,7 +903,13 @@ function flattenDocs(nodes: NavNode[], out: { path: string; title: string }[] = 
 }
 
 export default function CommandPalette(props: CommandPaletteProps): React.JSX.Element {
-  const { projects, activeId, activeProject, tree } = props
+  // Destructure the callbacks so the memos below depend on the specific functions, not
+  // the whole `props` object (which is a fresh reference every App render and would bust
+  // every memo each keystroke).
+  const {
+    projects, activeId, activeProject, tree,
+    onSelectProject, onOpenDoc, onSwitchRef, onAddProject, onManageProjects, onRebuild, onSettings, onClose
+  } = props
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -888,23 +922,23 @@ export default function CommandPalette(props: CommandPaletteProps): React.JSX.El
 
   const commands = useMemo<Cmd[]>(() => {
     const list: Cmd[] = [
-      { id: 'cmd:add', label: 'Add project', icon: 'fa-plus', run: props.onAddProject },
-      { id: 'cmd:manage', label: 'Manage projects', icon: 'fa-list', run: props.onManageProjects }
+      { id: 'cmd:add', label: 'Add project', icon: 'fa-plus', run: onAddProject },
+      { id: 'cmd:manage', label: 'Manage projects', icon: 'fa-list', run: onManageProjects }
     ]
     if (activeProject) {
       list.push({
         id: 'cmd:rebuild',
         label: activeProject.type === 'github' ? 'Pull latest' : 'Reindex',
         icon: 'fa-rotate',
-        run: props.onRebuild
+        run: onRebuild
       })
     }
     if (activeProject?.type === 'github') {
-      list.push({ id: 'cmd:ref', label: 'Switch ref…', icon: 'fa-code-branch', run: props.onSwitchRef })
+      list.push({ id: 'cmd:ref', label: 'Switch ref…', icon: 'fa-code-branch', run: onSwitchRef })
     }
-    list.push({ id: 'cmd:settings', label: 'Settings', icon: 'fa-gear', run: props.onSettings })
+    list.push({ id: 'cmd:settings', label: 'Settings', icon: 'fa-gear', run: onSettings })
     return list
-  }, [activeProject, props])
+  }, [activeProject, onAddProject, onManageProjects, onRebuild, onSwitchRef, onSettings])
 
   const { projectRows, docRows, commandRows, docOverflow } = useMemo(() => {
     const rankKeep = (rows: Row[]): Row[] =>
@@ -913,7 +947,7 @@ export default function CommandPalette(props: CommandPaletteProps): React.JSX.El
     const proj: Row[] = projects.map((p) => ({
       kind: 'project', id: p.id, label: p.name, chip: p.type,
       icon: p.type === 'github' ? 'fa-github' : 'fa-folder',
-      run: () => props.onSelectProject(p.id),
+      run: () => onSelectProject(p.id),
       score: q ? score(q, p.name) : 1
     }))
     const cmds: Row[] = commands.map((c) => ({
@@ -927,7 +961,7 @@ export default function CommandPalette(props: CommandPaletteProps): React.JSX.El
       const scored: Row[] = docs
         .map((d) => ({
           kind: 'doc' as const, id: `doc:${d.path}`, label: d.title, path: d.path,
-          run: () => props.onOpenDoc(d.path),
+          run: () => onOpenDoc(d.path),
           score: Math.max(score(q, d.title), score(q, d.path))
         }))
         .filter((r) => r.score > 0)
@@ -937,7 +971,7 @@ export default function CommandPalette(props: CommandPaletteProps): React.JSX.El
     }
 
     return { projectRows: rankKeep(proj), docRows: docRowsOut, commandRows: rankKeep(cmds), docOverflow: overflow }
-  }, [projects, commands, docs, q, activeId, props])
+  }, [projects, commands, docs, q, activeId, onSelectProject, onOpenDoc])
 
   // Flattened selectable rows for ↑/↓/Enter (Projects → Documents → Commands).
   const selectable = useMemo(() => [...projectRows, ...docRows, ...commandRows], [projectRows, docRows, commandRows])
@@ -951,7 +985,7 @@ export default function CommandPalette(props: CommandPaletteProps): React.JSX.El
     const row = selectable[i]
     if (!row) return
     row.run()
-    props.onClose()
+    onClose()
   }
 
   const onKeyDown = (e: React.KeyboardEvent): void => {
@@ -967,7 +1001,7 @@ export default function CommandPalette(props: CommandPaletteProps): React.JSX.El
     } else if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation() // topmost-surface-only: nothing underneath also closes
-      props.onClose()
+      onClose()
     }
   }
 
@@ -1004,7 +1038,7 @@ export default function CommandPalette(props: CommandPaletteProps): React.JSX.El
   return (
     <div
       className="modal-overlay palette-overlay"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) props.onClose() }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="palette" role="dialog" aria-modal="true" aria-label="Command palette" data-palette>
         <input
@@ -1146,15 +1180,18 @@ git commit -m "style(palette): .palette-* chrome on .modal-overlay + Cobalt toke
 - [ ] **Step 2: Write the failing test** `tests/appPalette.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import App from '../src/renderer/src/App'
-import type { Project } from '../src/shared/types'
+import type { Project, NavNode } from '../src/shared/types'
+import { stubLocalStorage } from './helpers/localStorage'
 
 let container: HTMLDivElement
 let root: Root
+let restoreLs: () => void
 const A: Project = { id: 'a', name: 'Alpha', type: 'local', source: '/tmp/a', addedAt: 'now', status: 'ok', docCount: 1 }
+const docTree: NavNode[] = [{ type: 'doc', name: 'r.md', title: 'Readme', path: 'r.md', kind: 'md' }]
 
 beforeEach(() => {
   if (!window.matchMedia) {
@@ -1162,12 +1199,11 @@ beforeEach(() => {
       matches: false, addEventListener: () => {}, removeEventListener: () => {}
     })
   }
-  ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
-    getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {}, key: () => null, length: 0
-  } as unknown as Storage
+  restoreLs = stubLocalStorage()
   ;(window as unknown as { api: Partial<Window['api']> }).api = {
     listProjects: async () => [A],
     selectProject: async () => ({ tree: [], docCount: 0 }),
+    getDoc: async () => ({ kind: 'md', content: '# Readme' }),
     onBuildProgress: () => () => {},
     onIndexChanged: () => () => {}
   }
@@ -1176,6 +1212,8 @@ beforeEach(() => {
   root = createRoot(container)
 })
 
+afterEach(() => { restoreLs() })
+
 async function mount(): Promise<void> {
   await act(async () => { root.render(createElement(App)) })
   await act(async () => {})
@@ -1183,6 +1221,12 @@ async function mount(): Promise<void> {
 const palette = (): Element | null => container.querySelector('[data-palette]')
 function key(k: string, init: Partial<KeyboardEventInit> = {}): void {
   window.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, ...init }))
+}
+const search = (): HTMLInputElement => container.querySelector('[data-field="palette-search"]') as HTMLInputElement
+function setValue(el: HTMLInputElement, v: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+  setter.call(el, v)
+  el.dispatchEvent(new window.Event('input', { bubbles: true }))
 }
 
 describe('App command palette keybinding', () => {
@@ -1211,6 +1255,34 @@ describe('App command palette keybinding', () => {
     await act(async () => { (container.querySelector('[aria-label="Settings"]') as HTMLButtonElement).click() })
     await act(async () => { key('k', { ctrlKey: true }) })
     expect(palette()).toBeNull()
+  })
+
+  it('activating a Document result while in the Manage view switches back to the docs view (MF4)', async () => {
+    // Give selectProject a real tree so the Documents tier has something to match.
+    ;(window as unknown as { api: Partial<Window['api']> }).api.selectProject = async () => ({ tree: docTree, docCount: 1 })
+    await mount()
+    // Select the project (docs view, active), then jump to the Manage view via the palette.
+    const projectSelect = container.querySelector('.topbar-select') as HTMLSelectElement
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')!.set!
+      setter.call(projectSelect, 'a')
+      projectSelect.dispatchEvent(new window.Event('change', { bubbles: true }))
+    })
+    await act(async () => {})
+    await act(async () => { key('k', { metaKey: true }) })
+    const manageCmd = Array.from(container.querySelectorAll('[data-option][data-kind="command"]'))
+      .find((o) => o.textContent?.includes('Manage projects')) as HTMLElement
+    await act(async () => { manageCmd.click() })
+    expect(container.querySelector('.sidebar')).toBeNull() // Manage view: sidebar is not rendered
+
+    // Reopen the palette, find the doc, and activate it — the view must flip to docs.
+    await act(async () => { key('k', { metaKey: true }) })
+    await act(async () => { setValue(search(), 'readme') })
+    await act(async () => {
+      search().dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    await act(async () => {})
+    expect(container.querySelector('.sidebar')).toBeTruthy() // back in the docs view
   })
 })
 ```
@@ -1289,7 +1361,7 @@ import CommandPalette from './components/CommandPalette'
   }, [addOpen, settingsOpen])
 ```
 
-  Render the palette (only when no modal is open). Add this just before the `{addOpen && ...}` line near the end of the returned JSX:
+  Render the palette (only when no modal is open). Add this just before the `{addOpen && ...}` line near the end of the returned JSX. **MF4:** opening a document or focusing the ref switcher from the palette must leave the **docs** view, so wrap `onOpenDoc` (and `onSwitchRef`) with `setView('docs')` — otherwise the palette can fire while `view === 'manage'` and the activated doc never becomes visible (the Manage view stays mounted). `onSelectProject` already calls `setView('docs')` inside the `selectProject` callback, so it needs no wrapper:
 
 ```tsx
       {paletteOpen && !addOpen && !settingsOpen && (
@@ -1299,8 +1371,8 @@ import CommandPalette from './components/CommandPalette'
           activeProject={activeProject}
           tree={tree}
           onSelectProject={selectProject}
-          onOpenDoc={openDoc}
-          onSwitchRef={() => { setPaletteOpen(false); setRefFocusNonce((n) => n + 1) }}
+          onOpenDoc={(path) => { setView('docs'); openDoc(path) }}
+          onSwitchRef={() => { setView('docs'); setPaletteOpen(false); setRefFocusNonce((n) => n + 1) }}
           onAddProject={() => setAddOpen(true)}
           onManageProjects={() => setView('manage')}
           onRebuild={rebuild}
@@ -1363,17 +1435,19 @@ git commit -m "feat(palette): App-level ⌘K keybinding, render, and BranchSwitc
 import { describe, it, expect } from 'bun:test'
 import { startWatch, type WatchFn } from '../src/main/watcher'
 
-// A fake fs.watch: captures the change callback so the test can fire events, and the
-// options so we can assert the recursive flag. Mirrors clone.ts injecting `spawn`.
-function fakeWatch(): { fn: WatchFn; fire: () => void; opts: () => { recursive?: boolean } } {
+// A fake fs.watch: captures the change callback so the test can fire events, the options
+// so we can assert the recursive flag, and a close counter so lifecycle tests can prove a
+// watcher is torn down exactly once. Mirrors clone.ts injecting `spawn`.
+function fakeWatch(): { fn: WatchFn; fire: () => void; opts: () => { recursive?: boolean }; closes: () => number } {
   let cb: () => void = () => {}
   let received: { recursive?: boolean } = {}
+  let closed = 0
   const fn = ((_root: string, options: { recursive?: boolean }, listener: () => void) => {
     received = options
     cb = listener
-    return { on: () => {}, close: () => {} } as never
+    return { on: () => {}, close: () => { closed += 1 } } as never
   }) as never
-  return { fn: fn as WatchFn, fire: () => cb(), opts: () => received }
+  return { fn: fn as WatchFn, fire: () => cb(), opts: () => received, closes: () => closed }
 }
 
 const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -1559,6 +1633,7 @@ git commit -m "feat(ipc): IndexChanged payload + onIndexChanged preload bridge"
 **Files:**
 - Modify: `src/main/projectService.ts`
 - Modify: `src/main/index.ts`
+- Modify: `src/main/ipc.ts`
 - Modify: `tests/watch.test.ts` (append the lifecycle `describe`)
 
 - [ ] **Step 1: Append the failing lifecycle tests** to `tests/watch.test.ts`. Add these imports at the top of the file and a new `describe` block at the end:
@@ -1571,7 +1646,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setBaseDir } from '../src/main/paths'
 import { addLocalProject } from '../src/main/registry'
-import { selectProject, setIndexSink } from '../src/main/projectService'
+import { selectProject, setIndexSink, stopWatch, releaseIfActive, getDoc } from '../src/main/projectService'
 import { addGithubProject } from '../src/main/projectService'
 
 // Fake git spawn that materializes a tiny repo into the clone dest (for the github case).
@@ -1633,6 +1708,47 @@ describe('watcher lifecycle (projectService)', () => {
     expect(pushes.filter((p) => p.projectId === a).length).toBe(0)
   })
 
+  it('a project switch MID-reindex keeps active on the new project and pushes nothing stale (MF1)', async () => {
+    const a = await localProject()
+    const b = await localProject()
+    const pushes: { projectId: string }[] = []
+    setIndexSink((payload) => pushes.push(payload))
+    const wa = fakeWatch()
+    const wb = fakeWatch()
+    await selectProject(a, { watchFn: wa.fn, debounceMs: 10 })
+    wa.fire()                               // schedule A's trailing reindex
+    await delay(15)                         // debounce elapses → reindexActive(a) is now in flight (suspended on its first await)
+    await selectProject(b, { watchFn: wb.fn, debounceMs: 10 }) // switch mid-reindex: generation bumps, active = B
+    await delay(15)                         // let the superseded reindex resume and hit its post-await generation guard
+    // active is B (a read for B must not throw), and the superseded reindex pushed nothing for A.
+    // NB: by the time A's reindex resumes, `active` and `watchedId` are BOTH already B — so the
+    // generation token, not the id-equality check, is what discards the stale commit.
+    await expect(getDoc(b, 'a.md')).resolves.toBeTruthy()
+    expect(pushes.some((p) => p.projectId === a)).toBe(false)
+  })
+
+  it('re-selecting tears down the previous watcher and stopWatch is idempotent (MF2)', async () => {
+    const id = await localProject()
+    const w1 = fakeWatch()
+    await selectProject(id, { watchFn: w1.fn, debounceMs: 20 })
+    const w2 = fakeWatch()
+    await selectProject(id, { watchFn: w2.fn, debounceMs: 20 }) // re-select must tear down w1 (no double-watch)
+    expect(w1.closes()).toBe(1)
+    stopWatch()                                // closes w2
+    expect(w2.closes()).toBe(1)
+    expect(() => stopWatch()).not.toThrow()    // idempotent no-op when nothing is watched
+  })
+
+  it('releaseIfActive stops the active local watcher and clears active (MF3)', async () => {
+    const id = await localProject()
+    const w = fakeWatch()
+    await selectProject(id, { watchFn: w.fn, debounceMs: 20 })
+    expect(w.closes()).toBe(0)
+    releaseIfActive(id)
+    expect(w.closes()).toBe(1)                 // watcher torn down
+    await expect(getDoc(id, 'a.md')).rejects.toThrow() // active cleared → read no longer resolves
+  })
+
   it('selecting a github project starts no watcher', async () => {
     let started = 0
     const watchFn = (() => { started++; return { on: () => {}, close: () => {} } as never }) as never
@@ -1646,7 +1762,7 @@ describe('watcher lifecycle (projectService)', () => {
 - [ ] **Step 2: Run the test to verify it fails.**
 
   Run: `bun test tests/watch.test.ts`
-  Expected: FAIL (`setIndexSink` is not exported; `selectProject` does not accept a `{ watchFn, debounceMs }` deps arg).
+  Expected: FAIL (`setIndexSink` / `stopWatch` / `releaseIfActive` are not exported; `selectProject` does not accept a `{ watchFn, debounceMs }` deps arg; there is no generation-gated reindex).
 
 - [ ] **Step 3: Implement the watcher lifecycle in** `src/main/projectService.ts`.
 
@@ -1656,7 +1772,7 @@ describe('watcher lifecycle (projectService)', () => {
 import { startWatch, type WatchFn, type WatchHandle } from './watcher'
 ```
 
-  Add a sink + watcher state and a `SelectDeps` type near the existing module state (after `const noProgress = ...`):
+  Add a sink + watcher state, a **generation token**, an idempotent/throw-safe `stopWatch`, `releaseIfActive`, and a generation-gated reindex near the existing module state (after `const noProgress = ...`):
 
 ```ts
 // index:changed sink — wired by src/main/index.ts to the captured window webContents.
@@ -1669,22 +1785,41 @@ let watchHandle: WatchHandle | null = null
 let watchedId: string | null = null
 type SelectDeps = { watchFn?: WatchFn; debounceMs?: number }
 
-function stopWatch(): void {
-  watchHandle?.close()
+// Monotonic token gating the reindex commit (MF1). Bumped on every project switch /
+// teardown, so a debounced reindex whose async discover/parse/index work straddles a
+// switch is discarded — even when `active`/`watchedId` have ALREADY been reassigned to
+// the new project (so id-equality alone is insufficient; the generation is load-bearing).
+let generation = 0
+
+// Idempotent + throw-safe (MF2): a no-op when nothing is watched; never lets a failing
+// handle.close() escape. Bumps `generation` so any in-flight reindex is superseded.
+export function stopWatch(): void {
+  generation += 1
+  if (!watchHandle) return
+  try { watchHandle.close() } catch { /* fail-soft: a broken FSWatcher must not crash teardown */ }
   watchHandle = null
   watchedId = null
 }
 
-// Re-walk the active local project and push the fresh tree — guarded so a debounced
-// event that lands AFTER the user switched away is a no-op (same active?.id pattern
-// rebuildProject uses).
+// Deleting the active project tears down its watcher and clears `active` (MF3). Wired
+// into the projects:remove IPC handler in ipc.ts.
+export function releaseIfActive(id: string): void {
+  if (active?.id === id) { stopWatch(); active = null }
+}
+
+// Generation-gated reindex (MF1): capture the token BEFORE the long async work, build the
+// next ActiveProject WITHOUT touching the module `active`, and only commit (`active = …`)
+// + push index:changed if neither a switch (generation) nor a teardown
+// (active?.id === watchedId) intervened. Superseded → discard, push nothing.
 async function reindexActive(id: string): Promise<void> {
   if (active?.id !== id || watchedId !== id) return
   const project = await getProject(id)
   if (!project || project.type !== 'local') return
-  const { tree, docCount } = await selectLocal(project) // replaces `active` with the same id
-  if (active?.id !== id) return // re-check after the await
-  indexSink?.({ projectId: id, tree, docCount })
+  const gen = generation
+  const built = await buildLocalActive(project) // does NOT assign the module `active`
+  if (generation !== gen || active?.id !== watchedId) return // superseded mid-reindex: discard
+  active = built.next
+  indexSink?.({ projectId: id, tree: built.tree, docCount: built.docCount })
 }
 
 function startProjectWatch(project: LocalProject, deps: SelectDeps): void {
@@ -1693,6 +1828,48 @@ function startProjectWatch(project: LocalProject, deps: SelectDeps): void {
     watchFn: deps.watchFn,
     debounceMs: deps.debounceMs
   })
+}
+```
+
+  **Refactor `selectLocal`** to split the discover/parse/index work from the `active` commit, so the reindex path can build a candidate without unconditionally clobbering `active`. Replace the existing `selectLocal` with `buildLocalActive` (no commit) + a thin `selectLocal` (commits):
+
+```ts
+// Walk a local project root and build the would-be ActiveProject WITHOUT assigning the
+// module `active`. The reindex path gates the commit on the generation token; selectLocal
+// commits unconditionally.
+async function buildLocalActive(
+  project: Project & { type: 'local' }
+): Promise<{ next: ActiveProject; tree: NavNode[]; docCount: number }> {
+  const root = project.source
+  const discovered = await discover(root)
+  const docs: ParsedDoc[] = []
+  for (const d of discovered) {
+    if (d.kind === 'md') {
+      const raw = await readFile(safeResolve(root, d.path), 'utf8')
+      docs.push(parseMarkdown(d.path, d.path.split('/').pop()!, raw))
+    } else {
+      docs.push(parseHtml(d.path, d.path.split('/').pop()!))
+    }
+  }
+  const sections = docs.flatMap((d) => d.sections)
+  const index = buildIndex(sections)
+  const tree = buildTree(docs)
+  await updateProject(project.id, {
+    docCount: docs.length,
+    lastBuiltAt: new Date().toISOString(),
+    status: 'ok'
+  })
+  return {
+    next: { id: project.id, type: 'local', root, docs: new Map(docs.map((d) => [d.path, d])), index, tree },
+    tree,
+    docCount: docs.length
+  }
+}
+
+async function selectLocal(project: Project & { type: 'local' }): Promise<{ tree: NavNode[]; docCount: number }> {
+  const built = await buildLocalActive(project)
+  active = built.next // commit (unguarded — caller-initiated select/rebuild)
+  return { tree: built.tree, docCount: built.docCount }
 }
 ```
 
@@ -1710,8 +1887,9 @@ import type {
 export async function selectProject(id: string, deps: SelectDeps = {}): Promise<{ tree: NavNode[]; docCount: number }> {
   const project = await getProject(id)
   if (!project) throw new Error(`Project not found: ${id}`)
-  stopWatch() // every active replacement tears down the previous watcher
-  active = null // tear down previous (active-Project lifecycle)
+  stopWatch()      // every active replacement tears down the previous watcher (also bumps `generation`)
+  generation += 1  // explicit: supersede any reindex still in flight from the prior project (MF1)
+  active = null    // tear down previous (active-Project lifecycle)
   if (project.type === 'github') return loadGithubRef(project, project.currentRef, noProgress, {})
   const res = await selectLocal(project)
   startProjectWatch(project, deps)
@@ -1719,23 +1897,44 @@ export async function selectProject(id: string, deps: SelectDeps = {}): Promise<
 }
 ```
 
-  (`selectLocal` is unchanged — it does **not** manage the watcher, so `reindexActive` calling it does not restart the watch. Note: `getProject` and `selectLocal` already narrow `project.type === 'local'`, so passing `project` to `startProjectWatch(project, ...)` is type-safe as `LocalProject`.)
+  (The reindex path calls `buildLocalActive` directly — **not** `selectLocal` — so its commit is generation-gated; and neither touches the watcher, so a reindex never restarts/leaks the watch. `getProject` and `selectLocal` already narrow `project.type === 'local'`, so passing `project` to `startProjectWatch(project, ...)` is type-safe as `LocalProject`. The `generation += 1` is belt-and-suspenders alongside `stopWatch`'s bump — it keeps the supersede invariant even if a future refactor selects without tearing down.)
 
 - [ ] **Step 4: Capture the window's `webContents` and wire the sink** in `src/main/index.ts`. Add the import and wire the sink inside `createWindow()` (after the `win` is created), clearing it on `'closed'`:
 
 ```ts
-import { setIndexSink } from './projectService'
+import { setIndexSink, stopWatch } from './projectService'
 ```
 
   Inside `createWindow()`, after `win.on('ready-to-show', ...)`:
 
 ```ts
   // Capture this window's webContents so the file watcher can push index:changed
-  // outside any IPC invoke (a watcher event has no `e.sender`). Cleared on close.
+  // outside any IPC invoke (a watcher event has no `e.sender`). On close, clear the sink
+  // AND stop the watcher (MF2) so no fs.watch handle outlives the window.
   setIndexSink((payload) => {
     if (!win.webContents.isDestroyed()) win.webContents.send('index:changed', payload)
   })
-  win.on('closed', () => setIndexSink(null))
+  win.on('closed', () => { setIndexSink(null); stopWatch() })
+```
+
+  > Optional hardening: for a multi-window or quit-without-`'closed'` path you can also call `stopWatch()` from an app-level `app.on('before-quit', …)` handler. Single-window today, so the `'closed'` teardown is sufficient; `stopWatch()` is idempotent, so a redundant `before-quit` call is safe.
+
+- [ ] **Step 4b: Wire `releaseIfActive` into the `projects:remove` handler (MF3).** Edit `src/main/ipc.ts`. Import `releaseIfActive` alongside the other `projectService` imports and call it in the `projects:remove` handler so deleting the **active** local project tears down its watcher and clears `active` (otherwise a deleted project's `fs.watch` would keep firing into a stale `active`):
+
+```ts
+import {
+  selectProject, getDoc, search,
+  addGithubProject, rebuildProject, cancelBuild,
+  listRefs, switchRef, addRef, removeRef, setDocsSubpath, releaseIfActive
+} from './projectService'
+```
+
+```ts
+  ipcMain.handle('projects:remove', async (_e, id: string) => {
+    releaseIfActive(id)         // stop the watcher + clear active if this is the open project
+    await purgeProjectCache(id) // remove derived cache (no-op for local)
+    await removeProject(id)
+  })
 ```
 
 - [ ] **Step 5: Run the test to verify it passes.**
@@ -1751,8 +1950,8 @@ import { setIndexSink } from './projectService'
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add src/main/projectService.ts src/main/index.ts tests/watch.test.ts
-git commit -m "feat(watch): projectService watcher lifecycle + active-id-guarded index:changed push"
+git add src/main/projectService.ts src/main/index.ts src/main/ipc.ts tests/watch.test.ts
+git commit -m "feat(watch): projectService watcher lifecycle + generation-gated index:changed push + releaseIfActive"
 ```
 
 ## Task E2.4 — Renderer subscription, live re-render, and removed-doc notice
@@ -1798,14 +1997,16 @@ interface Props {
 - [ ] **Step 3: Write the failing test** `tests/indexChanged.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import App from '../src/renderer/src/App'
 import type { Project, NavNode, IndexChanged } from '../src/shared/types'
+import { stubLocalStorage } from './helpers/localStorage'
 
 let container: HTMLDivElement
 let root: Root
+let restoreLs: () => void
 let indexCb: ((p: IndexChanged) => void) | null = null
 
 const A: Project = { id: 'a', name: 'Alpha', type: 'local', source: '/tmp/a', addedAt: 'now', status: 'ok', docCount: 1 }
@@ -1819,9 +2020,7 @@ beforeEach(() => {
       matches: false, addEventListener: () => {}, removeEventListener: () => {}
     })
   }
-  ;(globalThis as unknown as { localStorage: Storage }).localStorage = {
-    getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {}, key: () => null, length: 0
-  } as unknown as Storage
+  restoreLs = stubLocalStorage()
   ;(window as unknown as { api: Partial<Window['api']> }).api = {
     listProjects: async () => [A],
     selectProject: async () => ({ tree: treeWith, docCount: 1 }),
@@ -1833,6 +2032,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
 })
+
+afterEach(() => { restoreLs() })
 
 async function mountAndOpen(): Promise<void> {
   await act(async () => { root.render(createElement(App)) })
@@ -1974,7 +2175,7 @@ git commit -m "feat(watch): renderer onIndexChanged — live re-render, preserve
 6. E4 App-level ⌘K/Ctrl+K (`preventDefault`, fires over a focused input, suppressed when a modal is open) + render + "Switch ref…" opening/focusing the existing BranchSwitcher (palette closes) → **Task E4.4**.
 7. E2 `src/main/watcher.ts` (injectable `fs.watch`, 300 ms trailing/leading-suppressed debounce, Linux degrade, fail-soft) → **Task E2.1**.
 8. E2 `IndexChanged` payload + `IpcApi.onIndexChanged` + preload bridge → **Task E2.2**.
-9. E2 watcher lifecycle (start after a local `selectProject`, tear down on every `active` replacement), active-id-guarded `index:changed` push through the `webContents` captured in `src/main/index.ts`, github-never-watched → **Task E2.3**.
+9. E2 watcher lifecycle (start after a local `selectProject`, tear down on every `active` replacement + on window `'closed'` + on delete of the active project), **generation-gated** `index:changed` push (MF1) through the `webContents` captured in `src/main/index.ts`, idempotent/throw-safe `stopWatch` (MF2), `releaseIfActive` wired into `projects:remove` (MF3), github-never-watched → **Task E2.3**.
 10. E2 renderer subscription (tree update, preserve open doc via `treeHasPath` + live re-render with preserved scroll, "This document was removed." `.empty-state` with `fa-file-circle-xmark`, ignore non-active push) → **Task E2.4**.
 
 **Verbatim copy used:** placeholder "Search projects, docs, and commands…"; "Type to search documents…"; "…and N more — keep typing"; "No matches."; group headers "Projects" / "Documents · <name>" / "Commands"; command labels "Add project" / "Manage projects" / "Reindex" (local) / "Pull latest" (github) / "Switch ref…" / "Settings"; "This document was removed." / "Select a document." / "Add or select a project to begin."
@@ -1986,11 +2187,17 @@ git commit -m "feat(watch): renderer onIndexChanged — live re-render, preserve
 - **`CSS` test global:** `setup-dom.ts` did not register `CSS`; DocView's restore/jump uses `CSS.escape`. Added `'CSS'` to the registration list (jsdom provides `window.CSS.escape`) so App-level tests that render DocView don't throw. Harmless to all other tests.
 - **`localStorage` in tests:** neither `setup-dom.ts` nor a global provides a deterministic `localStorage`; session.ts uses the bare global (like theme.ts). The session/restore/palette/indexChanged tests install an in-memory `localStorage` stub in `beforeEach`. (Runtime renderer behavior is unchanged — bare `localStorage` is `window.localStorage`.)
 - **"Switch ref…" mechanism:** the BranchSwitcher is an always-present inline `<select>`, not a modal — there is nothing to "open". The command therefore **closes the palette and focuses** the select via a new `focusNonce` prop (bumped by App; BranchSwitcher focuses on change, skipping the initial 0). No inline ref sub-items, matching the decision.
-- **index:changed push lives in `index.ts`, not `ipc.ts`:** the push has no IPC invoke event, so it cannot use `progressTo(e)`. `index.ts` owns the window, so it wires `projectService.setIndexSink()` to `win.webContents.send(...)` (with an `isDestroyed()` guard) and clears it on `'closed'`. `ipc.ts` is **not** modified by E2. (The spec touch points were updated to match.)
+- **index:changed push lives in `index.ts`, not `ipc.ts`:** the push has no IPC invoke event, so it cannot use `progressTo(e)`. `index.ts` owns the window, so it wires `projectService.setIndexSink()` to `win.webContents.send(...)` (with an `isDestroyed()` guard) and on `'closed'` both clears the sink and calls `stopWatch()` (MF2). `ipc.ts` is modified **once** by E2 — the `projects:remove` handler calls `releaseIfActive(id)` (MF3) — but the push channel itself never touches it.
+- **MF1 reindex race (generation token):** the debounced reindex must not call `selectLocal` (which unconditionally sets `active`). It calls `buildLocalActive` (no commit), capturing `const gen = generation` before the async work, and commits `active` + pushes `index:changed` only if `generation === gen && active?.id === watchedId` still hold afterward. The generation is load-bearing because, by the time a superseded reindex resumes, `active`/`watchedId` may already both be the NEW project — an id-equality check alone would pass. `generation` is bumped in `stopWatch` and in `selectProject`.
+- **MF5 StrictMode latch:** the combined launch/restore effect is guarded by a `didRunRef` (`useRef(false)`) so React.StrictMode's dev double-invoke doesn't fire two concurrent `selectProject` restores. The session object is read once via a lazy `useState(loadSession)` initializer (a bare `useRef(loadSession())` re-reads localStorage every render).
+- **MF4 palette view switch:** the palette's `onOpenDoc` (and `onSwitchRef`) are wrapped with `setView('docs')` in App so activating a Document/jump while `view === 'manage'` makes the result visible (`onSelectProject` already sets the docs view inside `selectProject`).
+- **D4-15 localStorage test helper:** the per-file inline stub is replaced by `tests/helpers/localStorage.ts`'s `stubLocalStorage()`, which saves the original `globalThis.localStorage` property descriptor and returns a teardown that restores it (or deletes if none existed). Every session/restore/palette/indexChanged test calls it in `beforeEach`/per-test and restores in `afterEach`. The helper is web-only (DOM `Storage` type) so it is added to `tsconfig.web.json` include + `tsconfig.node.json` exclude.
 - **`selectProject(id, deps?)`:** an optional `{ watchFn?, debounceMs? }` second arg was added for test injection (mirrors `clone.ts`/`build.ts` injecting `spawn`). It is backward-compatible — `ipc.ts`'s `projects:select` handler still calls `selectProject(id)` unchanged, and the renderer `IpcApi.selectProject(id)` signature is untouched (deps is main-internal only).
-- **Watcher restart safety:** `reindexActive` calls `selectLocal` (which does **not** manage the watcher), so a reindex does not restart/leak the watch. The watcher is started once per `selectProject` and torn down by `stopWatch()` on the next `selectProject` (every `active` replacement) — and on window `'closed'` via the cleared sink (the renderer stops subscribing; the watcher is also closed on the next selection / app exit).
+- **Watcher restart safety:** `reindexActive` calls `buildLocalActive` (neither it nor `selectLocal` manages the watcher), so a reindex never restarts/leaks the watch. The watcher is started once per local `selectProject` and torn down by the idempotent `stopWatch()` on the next `selectProject` (every `active` replacement), on window `'closed'`, and on `releaseIfActive` when the active project is deleted.
 - **Debounce numbers:** production watcher debounce is 300 ms (default in `startWatch`); tests pass `debounceMs: 20` for speed. E3 scroll-save throttle is 250 ms trailing.
 - **No new dependencies:** `node:fs` watch, hand-rolled `lib/fuzzy.ts`, and `localStorage` — consistent with the cannot-npm-install constraint.
+
+**Accepted-for-v1 (no task):** a live reindex re-applies the saved scroll anchor (`restoreHeadingId`) rather than the user's *current* in-doc scroll position, so a manual Contents jump made between edits is not re-honored after a reload — acceptable v1 precedence. Watcher failures (`fs.watch` throw / `'error'`) fail soft to "manual Reindex" with only a `console.warn`; there is no user-facing watcher-error surface in v1.
 
 **Scope honored:** rank-only fuzzy (no `<mark>` — deferred fast-follow); Documents hard-capped (no virtualization); palette tier 3 (cross-project GitHub docs), incremental reindex, Linux recursive watch, and a main-side settings file all remain out of scope per the spec.
 ```
