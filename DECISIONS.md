@@ -93,3 +93,24 @@ Adopted must-fix bugs (from the deep review — straight defects, folded into th
 _Per-slice build verdicts (Codex offload) append below as they land._
 
 ---
+
+## Plan 5 — Theming editor
+
+### Scope & decisions (resolved via dual council — Claude `/bork:council` + design-system + Codex, 2026-06-14)
+
+Both councils converged on a **preset-first theme library** built on a token-override + by-id registry, with the custom editor deferred. Two substantive refinements adopted: (1) **T1 and T7 are a single architectural decision** — the override-map registry IS the architecture, not an impl detail; (2) the accent-shifted 4th preset is the weak link — recognition comes from background/surface shifts, so the 4th preset must be a distinct-surface palette, not accent-only.
+
+| # | Decision | Call | Why |
+|---|----------|------|-----|
+| D5-1 | T1 Ambition | **(a) Curated preset theme library, no color editing** — structured as a token-override map + by-id registry so constrained customization (b) is a clean fast-follow; full token editor + background images (c) deferred | Serves the #1 goal ("know which project you're in") with zero AI-slop; the architecture makes (b)/(c) non-painful later. The spec's literal "custom themes via editor v1" is INTENTIONALLY deferred (not dropped). |
+| D5-2 | T7 Application (= D5-1, the linchpin) | **(a) JS `element.style.setProperty('--token', v)` override map over the existing `data-theme` base set; token names registry-whitelisted** | One path for built-ins, per-project, and future custom themes; CSP-safe (no injected `<style>`); no styles.css bloat. T1=a and T7=a stand or fall together. |
+| D5-3 | T2 themeId model | **(a) Widen `ProjectBase.themeId` from the ThemeChoice enum to a registry theme-id (absent = use global); migrate old `dark\|light\|system` explicitly** | The registry is by-id anyway; do the migration while the field is new and `absent=global` already exists. `'system'` stops being a themeId value and becomes a property of the Default theme. Invasive into just-shipped Plan 3 code — isolate + re-run gates. |
+| D5-4 | T3 Built-in presets | **Default (Cobalt dark+light, OS-following) + Sepia/warm + High-contrast + one DISTINCT-SURFACE palette (e.g. Graphite/Forest — NOT accent-only)**; all contrast-checked | Recognition comes from bg/surface shifts, not accent; an accent-only variant dilutes the single-accent discipline and reads as slop. |
+| D5-5 | T4 Per-project scope | **(b) chrome + document both**, with calm `--transition` transitions; consider a complementary per-project marker (chip/rail) so full chrome repaint doesn't disorient | The persistently-visible chrome is what makes a project recognizable; doc-only is too weak. |
+| D5-6 | T5 Persistence | **(a) renderer localStorage for built-in-only v1** (global selection in `curator.theme`; per-project theme-id via registry/updateProjectSettings); `userData/themes/*.json` + theme-CRUD IPC deferred with custom themes | Built-ins are static code; only the selection needs persisting, which already happens. No ADR-0003 conflict (that governs custom-theme assets, which arrive with (c)). |
+| D5-7 | T6 Editor IA | **(b) a theme library (pick ONE theme carrying both regions + base/variant) replaces today's two segmented controls; Default ships as the current mixed dark-chrome/light-doc combo so nothing regresses**; per-region "advanced override" (c) parked as a named fast-follow | Collapses two mental models into one, matches the "Theme — not light/dark mode" vocabulary; the mixed default survives as the named Default. |
+| D5-8 | T8 Customization (deferred) | **Out of scope for v1**; fast-follow = base mode + accent from a CURATED design-system swatch (never a freeform picker) + WCAG contrast validation before save | Curated swatch is the load-bearing anti-slop guardrail; full token editing + background images stay out until a real need + a security/storage model. |
+
+**Sequencing:** Plan 5's `themeId` widening (D5-3) touches `src/shared/types.ts` / `src/renderer/src/App.tsx` / `ManageProjects.tsx` — files Plan 4 is concurrently modifying. Plan 5 builds **after Plan 4 merges**; its implementation plan reconciles against post-Plan-4 code.
+
+_Design spec, design-review, implementation plan, deep-review, and build verdict append below as they land._
