@@ -80,7 +80,6 @@ tests/
   "license": "MIT",
   "author": "Matthew Batchelder",
   "main": "./out/main/index.js",
-  "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -114,6 +113,14 @@ tests/
   }
 }
 ```
+
+> **Note (CJS for main/preload):** `package.json` deliberately omits `"type": "module"`.
+> electron-vite then builds the main and preload bundles as CommonJS (`out/main/index.js`,
+> `out/preload/index.js`), and `__dirname` is available in those bundles. This matters
+> because **sandboxed preload scripts (`sandbox: true`) must be CommonJS** — an ESM
+> `.mjs` preload would fail at runtime. The renderer is still bundled as ESM by Vite
+> regardless. Config/test files (`electron.vite.config.ts`, `vitest.config.ts`, `tests/*`)
+> are loaded by their own tooling and are unaffected.
 
 - [ ] **Step 2: Install dependencies**
 
@@ -221,7 +228,7 @@ function createWindow(): void {
     height: 860,
     show: false,
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
@@ -233,7 +240,7 @@ function createWindow(): void {
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    win.loadFile(join(import.meta.dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
@@ -1407,7 +1414,7 @@ function createWindow(): void {
     height: 860,
     show: false,
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
@@ -1419,7 +1426,7 @@ function createWindow(): void {
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    win.loadFile(join(import.meta.dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 

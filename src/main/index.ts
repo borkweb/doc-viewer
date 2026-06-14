@@ -7,7 +7,7 @@ function createWindow(): void {
     height: 860,
     show: false,
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
@@ -19,7 +19,7 @@ function createWindow(): void {
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    win.loadFile(join(import.meta.dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
