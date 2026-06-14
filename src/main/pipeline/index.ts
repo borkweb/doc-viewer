@@ -14,7 +14,7 @@ const INDEX_OPTIONS = {
     prefix: true,
     fuzzy: 0.2
   }
-} as const
+}
 
 export function buildIndex(sections: Section[]): MiniSearch {
   const mini = new MiniSearch(INDEX_OPTIONS)
