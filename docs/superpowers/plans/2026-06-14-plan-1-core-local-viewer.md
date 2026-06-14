@@ -124,7 +124,7 @@ tests/
 
 - [ ] **Step 2: Install dependencies**
 
-Run: `npm install`
+Run: `bun install`
 Expected: completes, creates `node_modules/` and `package-lock.json`.
 
 - [ ] **Step 3: Create `.gitignore`**
@@ -310,7 +310,7 @@ export default function App(): React.JSX.Element {
 
 - [ ] **Step 9: Run the app to verify the scaffold boots**
 
-Run: `npm run dev`
+Run: `bun run dev`
 Expected: an Electron window opens showing "Doc Viewer". Close it (Ctrl-C in terminal).
 
 - [ ] **Step 10: Commit**
@@ -358,7 +358,7 @@ describe('smoke', () => {
 
 - [ ] **Step 3: Run tests**
 
-Run: `npm test`
+Run: `bun run test`
 Expected: 1 passing test.
 
 - [ ] **Step 4: Commit**
@@ -460,7 +460,7 @@ declare global {
 
 - [ ] **Step 2: Typecheck**
 
-Run: `npm run typecheck:node`
+Run: `bun run typecheck:node`
 Expected: PASS (no errors).
 
 - [ ] **Step 3: Commit**
@@ -536,7 +536,7 @@ describe('discover', () => {
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `npx vitest run tests/discover.test.ts`
+Run: `bunx vitest run tests/discover.test.ts`
 Expected: FAIL ("Cannot find module '../src/main/pipeline/discover'").
 
 - [ ] **Step 4: Implement `src/main/pipeline/discover.ts`**
@@ -634,7 +634,7 @@ export async function discover(root: string): Promise<DiscoveredDoc[]> {
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `npx vitest run tests/discover.test.ts`
+Run: `bunx vitest run tests/discover.test.ts`
 Expected: PASS (4 tests).
 
 - [ ] **Step 6: Commit**
@@ -721,7 +721,7 @@ describe('parseMarkdown', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `npx vitest run tests/parse.test.ts`
+Run: `bunx vitest run tests/parse.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/pipeline/parse.ts`**
@@ -839,7 +839,7 @@ export function parseHtml(path: string, name: string): ParsedDoc {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `npx vitest run tests/parse.test.ts`
+Run: `bunx vitest run tests/parse.test.ts`
 Expected: PASS (7 tests).
 
 - [ ] **Step 5: Commit**
@@ -895,7 +895,7 @@ describe('search index', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `npx vitest run tests/index.test.ts`
+Run: `bunx vitest run tests/index.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/pipeline/index.ts`**
@@ -952,7 +952,7 @@ export function runSearch(index: MiniSearch, query: string): SearchResult[] {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `npx vitest run tests/index.test.ts`
+Run: `bunx vitest run tests/index.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -998,7 +998,7 @@ describe('safeResolve', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `npx vitest run tests/pathsafe.test.ts`
+Run: `bunx vitest run tests/pathsafe.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/util/pathsafe.ts`**
@@ -1021,7 +1021,7 @@ export function safeResolve(root: string, relativePath: string): string {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `npx vitest run tests/pathsafe.test.ts`
+Run: `bunx vitest run tests/pathsafe.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -1108,7 +1108,7 @@ describe('registry', () => {
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `npx vitest run tests/registry.test.ts`
+Run: `bunx vitest run tests/registry.test.ts`
 Expected: FAIL ("Cannot find module '../src/main/registry'").
 
 - [ ] **Step 4: Implement `src/main/registry.ts`**
@@ -1178,7 +1178,7 @@ export async function removeProject(id: string): Promise<void> {
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `npx vitest run tests/registry.test.ts`
+Run: `bunx vitest run tests/registry.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 6: Commit**
@@ -1255,7 +1255,7 @@ describe('projectService', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `npx vitest run tests/projectService.test.ts`
+Run: `bunx vitest run tests/projectService.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/main/projectService.ts`**
@@ -1366,7 +1366,7 @@ export async function search(id: string, query: string): Promise<SearchResult[]>
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `npx vitest run tests/projectService.test.ts`
+Run: `bunx vitest run tests/projectService.test.ts`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -1476,7 +1476,7 @@ contextBridge.exposeInMainWorld('api', api)
 
 - [ ] **Step 4: Typecheck**
 
-Run: `npm run typecheck`
+Run: `bun run typecheck`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1524,7 +1524,7 @@ describe('renderMarkdown', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `npx vitest run tests/render.test.ts`
+Run: `bunx vitest run tests/render.test.ts`
 Expected: FAIL ("Cannot find module").
 
 - [ ] **Step 3: Implement `src/renderer/src/lib/render.ts`**
@@ -1627,7 +1627,7 @@ export async function enhanceDiagrams(container: HTMLElement): Promise<void> {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `npx vitest run tests/render.test.ts`
+Run: `bunx vitest run tests/render.test.ts`
 Expected: PASS (3 tests). (Note: `enhanceDiagrams` is exercised manually in the app; jsdom can't render mermaid SVGs, so only `renderMarkdown` is unit-tested.)
 
 - [ ] **Step 5: Commit**
@@ -1996,12 +1996,12 @@ export default function DocView({ projectId, docPath, scrollToId }: Props): Reac
 
 - [ ] **Step 2: Typecheck the renderer**
 
-Run: `npm run typecheck:web`
+Run: `bun run typecheck:web`
 Expected: PASS.
 
 - [ ] **Step 3: Run the app end-to-end**
 
-Run: `npm run dev`
+Run: `bun run dev`
 Then in the app: click ＋, choose `/Users/matt/projects/personal/mews-two/docs`, confirm the tree populates, open `db.md` (renders with mermaid diagrams), type "schema" in search and click a result (jumps to the section). Close with Ctrl-C.
 Expected: docs render, diagrams are zoomable/click-to-expand, search returns per-section results.
 
@@ -2024,7 +2024,7 @@ git commit -m "feat(renderer): sidebar, doc tree, search box, doc view"
 
 - [ ] **Step 1: Add electron-builder to devDependencies**
 
-Run: `npm install -D electron-builder@^25.1.8`
+Run: `bun add -d electron-builder@^25.1.8`
 Expected: installs.
 
 - [ ] **Step 2: Add build scripts to `package.json`**
@@ -2053,7 +2053,7 @@ mac:
 
 - [ ] **Step 4: Produce an unpacked local build**
 
-Run: `npm run build:mac`
+Run: `bun run build:mac`
 Expected: `dist/mac*/Doc Viewer.app` is produced. Launch it to confirm it opens and you can add a local project.
 
 - [ ] **Step 5: Commit**
@@ -2069,17 +2069,17 @@ git commit -m "build: electron-builder local unsigned mac package (2A)"
 
 - [ ] **Step 1: Run all tests**
 
-Run: `npm test`
+Run: `bun run test`
 Expected: all suites pass (smoke, discover, parse, index, pathsafe, registry, projectService, render).
 
 - [ ] **Step 2: Typecheck both projects**
 
-Run: `npm run typecheck`
+Run: `bun run typecheck`
 Expected: PASS.
 
 - [ ] **Step 3: Manual smoke against the real docs**
 
-Run: `npm run dev`, add `/Users/matt/projects/personal/mews-two/docs`, verify: tree sorted with numeric prefixes in order, titles shown (not filenames), `db.md` mermaid diagrams render + zoom + click-to-expand, search "conventions" returns a section result that scrolls into view, removing/re-adding the project works.
+Run: `bun run dev`, add `/Users/matt/projects/personal/mews-two/docs`, verify: tree sorted with numeric prefixes in order, titles shown (not filenames), `db.md` mermaid diagrams render + zoom + click-to-expand, search "conventions" returns a section result that scrolls into view, removing/re-adding the project works.
 
 - [ ] **Step 4: Final commit (if any cleanup)**
 
