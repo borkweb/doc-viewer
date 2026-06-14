@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { renderMarkdown, buildToc } from '../src/renderer/src/lib/render'
+import { renderMarkdown, buildToc, highlightCode } from '../src/renderer/src/lib/render'
 import { parseMarkdown } from '../src/main/pipeline/parse'
 
 describe('renderMarkdown', () => {
@@ -39,5 +39,27 @@ describe('heading slug parity (parse vs buildToc)', () => {
     // The two implementations must agree on the anchor.
     expect(domId).toBe(section.headingId)
     expect(section.headingId).toBe('docs')
+  })
+})
+
+describe('highlightCode', () => {
+  function setup(md: string): HTMLElement {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown(md)
+    highlightCode(c)
+    return c
+  }
+
+  it('adds hljs token spans to a fenced code block', () => {
+    const c = setup('```ts\nconst x: number = 1\n```')
+    const code = c.querySelector('pre > code')!
+    expect(code.classList.contains('hljs')).toBe(true)
+    expect(code.innerHTML).toContain('hljs-keyword')
+  })
+
+  it('leaves mermaid blocks untouched for enhanceDiagrams', () => {
+    const c = setup('```mermaid\ngraph TD; A-->B\n```')
+    expect(c.querySelector('code.language-mermaid')).not.toBeNull()
+    expect(c.querySelector('.code-block')).toBeNull()
   })
 })

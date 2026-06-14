@@ -1,5 +1,6 @@
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import hljs from '../assets/highlight/highlight.min.js'
 import mermaid from 'mermaid'
 import svgPanZoom from 'svg-pan-zoom'
 import { slugify } from '@shared/slug'
@@ -94,6 +95,34 @@ export function buildToc(container: HTMLElement): TocEntry[] {
     toc.push({ id, text: h.textContent ?? '', depth: Number(h.tagName[1]) })
   })
   return toc
+}
+
+// Syntax-highlight fenced code blocks. Runs before enhanceDiagrams and skips
+// `language-mermaid`, which enhanceDiagrams replaces. Mutates the DOM in place;
+// the generated markup is our own trusted output (post-sanitization).
+export function highlightCode(container: HTMLElement): void {
+  const blocks = container.querySelectorAll('pre > code:not(.language-mermaid)')
+  blocks.forEach((node) => {
+    const code = node as HTMLElement
+    const source = code.textContent ?? ''
+
+    // Resolve language: honor a declared `language-xxx` class if highlight.js
+    // knows it (aliases like `ts`/`js` resolve), else auto-detect.
+    const declared = Array.from(code.classList)
+      .find((c) => c.startsWith('language-'))
+      ?.slice('language-'.length)
+    let lang: string | undefined
+    if (declared && hljs.getLanguage(declared)) {
+      code.innerHTML = hljs.highlight(source, { language: declared, ignoreIllegals: true }).value
+      lang = declared
+    } else {
+      const auto = hljs.highlightAuto(source)
+      code.innerHTML = auto.value
+      lang = auto.language
+    }
+    code.classList.add('hljs')
+    void lang
+  })
 }
 
 // Convert ```mermaid blocks into zoomable, click-to-expand diagrams.
