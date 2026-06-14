@@ -72,6 +72,24 @@ Design review hardened the palette spec (hierarchy, states, motion, keyboard/a11
 | D4-11 | Fuzzy-match highlighting | **(b) Rank-only first cut; `<mark>` highlight deferred** — keep the scorer prefix/contiguity-favoring so rank-only stays obvious | Keeps `lib/fuzzy.ts` returning a single score (no match-index bugs); promote highlight to launch only if matching proves loose. |
 | D4-12 | Documents-tier overflow | **(a) Hard cap ~50 by score + muted "…and N more — keep typing"** | One bounded line, no windowing dep, nudges narrowing; a palette is a narrowing tool, not a 1000-row browser. |
 
-_Implementation plan, deep-review, and per-slice build verdicts append below as they land._
+### Engineering deep-review (resolved via dual council, 2026-06-14)
+
+Deep-review verdict: **READY-WITH-FIXES (7/10)** — 5 concrete must-fix bugs (adopted as bug fixes) + 3 implementation-approach decision points (dual-councilled). Notably, both councils **independently corrected the lead** on DR-DP1.
+
+| # | Decision | Call | Why |
+|---|----------|------|-----|
+| D4-13 | DR-DP1 — make the reindex active-project guard actually hold | **Generation token that gates `selectLocal`'s `active=` WRITE itself** (not merely the post-await reindex commit) — merges reviewer options (a)+(b) | Both councils flagged that the corruption is the unconditional `active={...}` inside `selectLocal`; a token checked only after `await selectLocal(A)` still clobbers `active` to A while the UI shows B. Mutex rejected (serializes the hot path). |
+| D4-14 | DR-DP2 — watcher teardown on window `'closed'` | **Export `stopWatch()`/teardown from projectService, call in `'closed'`; idempotent + throw-safe (`try/catch` on `.close()`)** | macOS keeps the process alive on window-all-closed, so "rely on process death" leaks the `fs.watch` handle and stacks duplicate watchers across reopen. |
+| D4-15 | DR-DP3 — localStorage test-stub lifecycle | **Shared `stubLocalStorage()` helper with `afterEach` teardown that saves & restores the original property descriptor** (not a blind `delete`) | Avoids order-dependent test flakes from a leaked `globalThis.localStorage`; descriptor restore is safe if a real one ever exists. |
+
+Adopted must-fix bugs (from the deep review — straight defects, folded into the plan):
+- **MF1 (E2.3)** reindex `active`-corruption race → fixed by D4-13 (gen-token gating the write + re-check `watchedId` after await).
+- **MF2 (index.ts)** `fs.watch` handle leak on window `'closed'` → D4-14 explicit teardown.
+- **MF3 (projects:remove)** deleting the active local project never stops its watcher → add `releaseIfActive(id)` in projectService (`if (active?.id===id){ stopWatch(); active=null }`) called from the remove handler.
+- **MF4 (E4.4)** opening a doc/jumping from the palette while in Manage view renders it behind Manage → the palette's open-doc/switch-ref paths must `setView('docs')` (mirror `selectProject`).
+- **MF5 (E3.3)** launch/restore effect double-fires under React.StrictMode (dev) → guard with a `didRunRef` latch so restore runs once (also defuses MF1's dev-time trigger).
+- Cheap nice-to-haves folded: lazy `useState(loadSession)`; destructure palette `useMemo` deps. (Jump-vs-restore precedence + watcher-error surfacing noted as acceptable v1.)
+
+_Per-slice build verdicts (Codex offload) append below as they land._
 
 ---
