@@ -15,6 +15,8 @@ interface Props {
   docPath: string
   scrollToId: string | null
   scrollNonce: number
+  restoreHeadingId?: string | null
+  reloadNonce?: number
   onToc?: (toc: TocEntry[]) => void
   onStats?: (stats: DocStats | null) => void
 }
@@ -24,6 +26,8 @@ export default function DocView({
   docPath,
   scrollToId,
   scrollNonce,
+  restoreHeadingId,
+  reloadNonce,
   onToc,
   onStats
 }: Props): React.JSX.Element {
@@ -35,6 +39,8 @@ export default function DocView({
   // latest value without forcing the render/enhance effect to re-run on jumps.
   const targetRef = useRef<string | null>(scrollToId)
   targetRef.current = scrollToId
+  const restoreRef = useRef<string | null>(restoreHeadingId ?? null)
+  restoreRef.current = restoreHeadingId ?? null
 
   const doScroll = (): void => {
     const id = targetRef.current
@@ -52,7 +58,7 @@ export default function DocView({
       setHtml(doc.kind === 'md' ? renderMarkdown(doc.content) : doc.content)
     })()
     return () => { cancelled = true }
-  }, [projectId, docPath])
+  }, [projectId, docPath, reloadNonce])
 
   // Render the sanitized markdown HTML imperatively (not via dangerouslySetInnerHTML)
   // so React doesn't own this subtree: buildToc and enhanceDiagrams mutate the DOM
@@ -76,7 +82,12 @@ export default function DocView({
     highlightCode(container)
     void enhanceDiagrams(container).then(() => {
       onStats?.(computeDocStats(container))
-      doScroll()
+      if (targetRef.current) {
+        doScroll()
+      } else if (restoreRef.current) {
+        const el = container.querySelector(`#${CSS.escape(restoreRef.current)}`)
+        el?.scrollIntoView({ block: 'start' })
+      }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [html, kind])

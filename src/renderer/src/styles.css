@@ -504,6 +504,44 @@ body {
 .add-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
 .add-hint { color: var(--muted); font-size: 13px; }
 
+/* ── Command palette ────────────────────────────────────────────────────── */
+.palette-overlay { align-items: flex-start; }
+.palette {
+  margin-top: 12vh; width: min(640px, 92vw); display: flex; flex-direction: column;
+  background: var(--surface-raised); color: var(--fg); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden;
+  animation: palette-in var(--transition-slow) var(--ease-out); }
+@keyframes palette-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.palette-input {
+  border: 0; border-bottom: 1px solid var(--border); border-radius: 0;
+  background: var(--surface-raised); color: var(--fg); font-size: var(--text-base);
+  padding: var(--space-4) var(--space-5); outline: none; }
+.palette-input::placeholder { color: var(--faint); }
+.palette-input:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-ring); }
+.palette-list { overflow-y: auto; max-height: min(56vh, 420px); padding: var(--space-1); }
+.palette-group {
+  position: sticky; top: 0; z-index: 1; background: var(--surface-raised);
+  font-size: var(--text-label); font-weight: var(--weight-medium); text-transform: uppercase;
+  letter-spacing: var(--tracking-label); color: var(--muted);
+  padding: var(--space-2) var(--space-3) var(--space-1); }
+.palette-hint, .palette-more, .palette-empty {
+  color: var(--muted); font-size: var(--text-ui); padding: var(--space-2) var(--space-3); }
+.palette-row {
+  display: flex; align-items: center; gap: var(--space-2); min-height: 32px;
+  padding: 0 var(--space-3); border-radius: var(--radius-sm); cursor: pointer;
+  font-size: var(--text-ui); transition: background var(--transition), color var(--transition); }
+.palette-row.is-active { background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-semibold); }
+.palette-icon { color: var(--muted); width: 14px; text-align: center; flex: 0 0 auto; }
+.palette-row.is-active .palette-icon { color: var(--accent); }
+.palette-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-path {
+  margin-left: auto; color: var(--muted); font-family: var(--font-mono); font-size: 12px;
+  direction: rtl; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
+.palette-chip {
+  margin-left: auto; font-size: 11px; color: var(--muted); background: var(--surface-alt);
+  border-radius: var(--radius-sm); padding: 1px 6px; }
+@media (prefers-reduced-motion: reduce) { .palette { animation: none; } }
+
 /* ── Branch switcher (Plan 2b) ───────────────────────────────────────────── */
 .branch-switcher { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .branch-input { padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--fg); width: 120px; }

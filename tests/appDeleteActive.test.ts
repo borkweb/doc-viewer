@@ -70,7 +70,8 @@ beforeEach(() => {
     search: async () => [],
     pickDirectory: async () => null,
     openPath: async () => {},
-    onBuildProgress: () => () => {}
+    onBuildProgress: () => () => {},
+    onIndexChanged: () => () => {}
   }
 })
 

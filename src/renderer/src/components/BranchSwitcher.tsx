@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefInfo } from '@shared/types'
 
 interface Props {
@@ -7,12 +7,18 @@ interface Props {
   onSwitch: (ref: string) => void
   onAddRef: (ref: string) => void
   onRemoveRef: (ref: string) => void
+  focusNonce?: number
 }
 
 export default function BranchSwitcher(props: Props): React.JSX.Element {
   const { refs, currentRef } = props
   const [adding, setAdding] = useState(false)
   const [newRef, setNewRef] = useState('')
+  const selectRef = useRef<HTMLSelectElement>(null)
+
+  useEffect(() => {
+    if (props.focusNonce && props.focusNonce > 0) selectRef.current?.focus()
+  }, [props.focusNonce])
 
   const submitNew = (): void => {
     const r = newRef.trim()
@@ -26,6 +32,7 @@ export default function BranchSwitcher(props: Props): React.JSX.Element {
     <div className="branch-switcher">
       <i className="fa-solid fa-code-branch" aria-hidden="true" />
       <select
+        ref={selectRef}
         data-role="ref-select"
         className="topbar-select"
         value={currentRef}

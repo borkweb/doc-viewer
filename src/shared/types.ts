@@ -101,6 +101,13 @@ export interface BuildProgress {
   skipped?: number
 }
 
+// Pushed main -> renderer after a live reindex of the active local project.
+export interface IndexChanged {
+  projectId: string
+  tree: NavNode[]
+  docCount: number
+}
+
 // A search hit (per Section).
 export interface SearchResult {
   docPath: string
@@ -137,6 +144,7 @@ export interface IpcApi {
   pickDirectory(): Promise<string | null>
   openPath(target: string): Promise<void>
   onBuildProgress(cb: (p: BuildProgress) => void): () => void // returns unsubscribe
+  onIndexChanged(cb: (p: IndexChanged) => void): () => void // returns unsubscribe
 }
 
 declare global {

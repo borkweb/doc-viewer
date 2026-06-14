@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import type { spawn } from 'node:child_process'
 import type MiniSearch from 'minisearch'
 import type {
-  NavNode, ParsedDoc, SearchResult, DocKind, Project, GithubProject, BuildProgress
+  NavNode, ParsedDoc, SearchResult, DocKind, Project, LocalProject, GithubProject, BuildProgress, IndexChanged
 } from '@shared/types'
 import {
   getProject, updateProject, removeProject as registryRemoveProject,
@@ -16,6 +16,7 @@ import { buildGithubRef } from './pipeline/build'
 import { buildTree } from './tree'
 import { readCache, hasCache, purgeProjectCache, removeRefCache } from './cache'
 import { safeResolve } from './util/pathsafe'
+import { startWatch, type WatchFn, type WatchHandle } from './watcher'
 
 interface ActiveProject {
   id: string
@@ -32,20 +33,59 @@ let active: ActiveProject | null = null
 // In-flight builds, keyed by project id, so cancelBuild can abort them.
 const inFlight = new Map<string, AbortController>()
 type BuildDeps = { spawnFn?: typeof spawn }
+type ReadFileFn = typeof readFile
 const noProgress = (): void => {}
+
+export type ProjectGenerationToken = number
+type IndexSink = (payload: IndexChanged) => void
+let indexSink: IndexSink | null = null
+let generation: ProjectGenerationToken = 0
+let watchHandle: WatchHandle | null = null
+let watchedId: string | null = null
+type SelectDeps = { watchFn?: WatchFn; debounceMs?: number; readFileFn?: ReadFileFn }
+
+export function setIndexSink(sink: IndexSink | null): void {
+  indexSink = sink
+}
+
+export function getGenerationToken(): ProjectGenerationToken {
+  return generation
+}
+
+export function stopWatch(): void {
+  generation += 1
+  if (!watchHandle) return
+  try {
+    watchHandle.close()
+  } catch {
+    // Watch teardown is best-effort.
+  }
+  watchHandle = null
+  watchedId = null
+}
+
+export function releaseIfActive(id: string): void {
+  if (active?.id === id) {
+    stopWatch()
+    active = null
+  }
+}
 
 export function cancelBuild(id: string): void {
   inFlight.get(id)?.abort()
 }
 
 // ── local select (live, in-memory) ──────────────────────────────────────────
-async function selectLocal(project: Project & { type: 'local' }): Promise<{ tree: NavNode[]; docCount: number }> {
+async function buildLocalActive(
+  project: Project & { type: 'local' },
+  readLocalFile: ReadFileFn = readFile
+): Promise<{ next: ActiveProject; tree: NavNode[]; docCount: number }> {
   const root = project.source
   const discovered = await discover(root)
   const docs: ParsedDoc[] = []
   for (const d of discovered) {
     if (d.kind === 'md') {
-      const raw = await readFile(safeResolve(root, d.path), 'utf8')
+      const raw = await readLocalFile(safeResolve(root, d.path), 'utf8')
       docs.push(parseMarkdown(d.path, d.path.split('/').pop()!, raw))
     } else {
       docs.push(parseHtml(d.path, d.path.split('/').pop()!))
@@ -54,13 +94,50 @@ async function selectLocal(project: Project & { type: 'local' }): Promise<{ tree
   const sections = docs.flatMap((d) => d.sections)
   const index = buildIndex(sections)
   const tree = buildTree(docs)
-  active = { id: project.id, type: 'local', root, docs: new Map(docs.map((d) => [d.path, d])), index, tree }
   await updateProject(project.id, {
     docCount: docs.length,
     lastBuiltAt: new Date().toISOString(),
     status: 'ok'
   })
-  return { tree, docCount: docs.length }
+  return {
+    next: { id: project.id, type: 'local', root, docs: new Map(docs.map((d) => [d.path, d])), index, tree },
+    tree,
+    docCount: docs.length
+  }
+}
+
+async function selectLocal(
+  project: Project & { type: 'local' },
+  deps: SelectDeps,
+  gen: ProjectGenerationToken
+): Promise<{ tree: NavNode[]; docCount: number }> {
+  const built = await buildLocalActive(project, deps.readFileFn)
+  if (generation === gen) {
+    active = built.next
+    startProjectWatch(project, deps)
+  }
+  return { tree: built.tree, docCount: built.docCount }
+}
+
+async function reindexActive(id: string, deps: SelectDeps): Promise<void> {
+  if (active?.id !== id || watchedId !== id) return
+  const project = await getProject(id)
+  if (!project || project.type !== 'local') return
+  const gen = generation
+  const built = await buildLocalActive(project, deps.readFileFn)
+  if (generation !== gen || active?.id !== id || watchedId !== id) return
+  active = built.next
+  indexSink?.({ projectId: id, tree: built.tree, docCount: built.docCount })
+}
+
+function startProjectWatch(project: LocalProject, deps: SelectDeps): void {
+  watchedId = project.id
+  watchHandle = startWatch(project.source, () => {
+    void reindexActive(project.id, deps).catch(() => {})
+  }, {
+    watchFn: deps.watchFn,
+    debounceMs: deps.debounceMs
+  })
 }
 
 // ── github load (from cache; build if missing/stale) ────────────────────────
@@ -98,12 +175,15 @@ async function loadGithubRef(
   return { tree: cache.manifest.tree, docCount: cache.manifest.docCount }
 }
 
-export async function selectProject(id: string): Promise<{ tree: NavNode[]; docCount: number }> {
+export async function selectProject(id: string, deps: SelectDeps = {}): Promise<{ tree: NavNode[]; docCount: number }> {
   const project = await getProject(id)
   if (!project) throw new Error(`Project not found: ${id}`)
+  stopWatch()
+  generation += 1
+  const gen = generation
   active = null // tear down previous (active-Project lifecycle)
   if (project.type === 'github') return loadGithubRef(project, project.currentRef, noProgress, {})
-  return selectLocal(project)
+  return selectLocal(project, deps, gen)
 }
 
 // ── add github (build first ref) ────────────────────────────────────────────
@@ -178,7 +258,8 @@ export async function rebuildProject(
   const project = await getProject(id)
   if (!project) throw new Error(`Project not found: ${id}`)
   if (project.type === 'local') {
-    await selectLocal(project) // Reindex: re-walk live content
+    const built = await buildLocalActive(project)
+    if (active?.id === id) active = built.next
     return
   }
   const controller = new AbortController()
