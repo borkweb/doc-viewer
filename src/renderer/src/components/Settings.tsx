@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
-import type { ThemeChoice, ThemeSettings } from '../lib/theme'
+import type { ThemeChoice, RegionThemeSettings } from '../lib/theme'
 
 interface Props {
-  settings: ThemeSettings
-  onChange: (next: ThemeSettings) => void
+  settings: RegionThemeSettings
+  onChange: (next: RegionThemeSettings) => void
   onClose: () => void
 }
 

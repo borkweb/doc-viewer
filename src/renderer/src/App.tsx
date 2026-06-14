@@ -12,10 +12,10 @@ import ManageProjects from './components/ManageProjects'
 import CommandPalette from './components/CommandPalette'
 import type { TocEntry, DocStats } from './lib/render'
 import {
-  loadThemeSettings,
-  saveThemeSettings,
-  resolveTheme,
-  type ThemeSettings
+  loadRegionTheme,
+  saveRegionTheme,
+  resolveRegionMode,
+  type RegionThemeSettings
 } from './lib/theme'
 import { loadSession, saveSession, pickAnchor, type SessionState } from './lib/session'
 
@@ -62,7 +62,7 @@ export default function App(): React.JSX.Element {
   const didRunRef = useRef(false)
 
   // Theme: chrome and document themed independently; 'system' follows the OS.
-  const [theme, setTheme] = useState<ThemeSettings>(loadThemeSettings)
+  const [theme, setTheme] = useState<RegionThemeSettings>(loadRegionTheme)
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
@@ -72,7 +72,7 @@ export default function App(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [refFocusNonce, setRefFocusNonce] = useState(0)
 
-  useEffect(() => { saveThemeSettings(theme) }, [theme])
+  useEffect(() => { saveRegionTheme(theme) }, [theme])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
@@ -82,13 +82,13 @@ export default function App(): React.JSX.Element {
   }, [])
 
   const activeProject = activeId ? projects.find((p) => p.id === activeId) ?? null : null
-  const chromeTheme = resolveTheme(theme.chrome, systemDark)
+  const chromeTheme = resolveRegionMode(theme.chrome, systemDark)
   const projChoice = activeProject?.themeId
   const docChoice: ThemeChoice =
     projChoice && (THEME_CHOICES as readonly string[]).includes(projChoice)
       ? (projChoice as ThemeChoice)
       : theme.document
-  const docTheme = resolveTheme(docChoice, systemDark)
+  const docTheme = resolveRegionMode(docChoice, systemDark)
 
   const refreshProjects = useCallback(async () => {
     setProjects(await window.api.listProjects())
