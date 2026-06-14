@@ -145,6 +145,34 @@ describe('CommandPalette', () => {
     expect(leaked).toBe(false)
   })
 
+  it('traps Tab and Shift+Tab inside the palette', async () => {
+    await render(props())
+    const list = container.querySelector('[data-role="palette-list"]') as HTMLElement
+    expect(document.activeElement).toBe(input())
+
+    await act(async () => {
+      input().dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(list)
+
+    await act(async () => {
+      list.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+    })
+    expect(document.activeElement).toBe(input())
+  })
+
+  it('restores focus to the previously focused element on unmount', async () => {
+    const before = document.createElement('button')
+    before.textContent = 'Before'
+    document.body.appendChild(before)
+    before.focus()
+
+    await render(props())
+    expect(document.activeElement).toBe(input())
+    await act(async () => { root.render(null) })
+    expect(document.activeElement).toBe(before)
+  })
+
   it('caps the Documents tier at 50 and shows the overflow row', async () => {
     const many: NavNode[] = Array.from({ length: 60 }, (_, i) => ({
       type: 'doc',

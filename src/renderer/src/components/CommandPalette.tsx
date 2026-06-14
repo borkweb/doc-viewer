@@ -57,9 +57,17 @@ export default function CommandPalette({
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const restoreFocusRef = useRef<Element | null>(null)
   const q = query.trim()
 
-  useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => {
+    restoreFocusRef.current = document.activeElement
+    inputRef.current?.focus()
+    return () => {
+      const previous = restoreFocusRef.current
+      if (previous instanceof HTMLElement && document.contains(previous)) previous.focus()
+    }
+  }, [])
 
   const docs = useMemo(() => flattenDocs(tree), [tree])
 
@@ -160,6 +168,16 @@ export default function CommandPalette({
       event.preventDefault()
       event.stopPropagation()
       onClose()
+    } else if (event.key === 'Tab') {
+      event.preventDefault()
+      if (event.shiftKey) {
+        if (document.activeElement === inputRef.current) listRef.current?.focus()
+        else inputRef.current?.focus()
+      } else if (document.activeElement === inputRef.current) {
+        listRef.current?.focus()
+      } else {
+        inputRef.current?.focus()
+      }
     }
   }
 
@@ -211,7 +229,15 @@ export default function CommandPalette({
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={onKeyDown}
         />
-        <div className="palette-list" id="palette-list" role="listbox" ref={listRef}>
+        <div
+          className="palette-list"
+          id="palette-list"
+          role="listbox"
+          ref={listRef}
+          tabIndex={0}
+          data-role="palette-list"
+          onKeyDown={onKeyDown}
+        >
           {noMatch ? (
             <div className="palette-empty" data-empty>No matches.</div>
           ) : (
