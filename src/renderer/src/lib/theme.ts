@@ -13,7 +13,7 @@ export interface ThemeSettings {
 
 export const DEFAULT_THEME: ThemeSettings = { chrome: 'dark', document: 'light' }
 
-const STORAGE_KEY = 'docviewer.theme'
+const STORAGE_KEY = 'curator.theme'
 const CHOICES: ThemeChoice[] = ['dark', 'light', 'system']
 
 function isChoice(v: unknown): v is ThemeChoice {

@@ -1,5 +1,5 @@
-appId: com.borkweb.docviewer
-productName: Doc Viewer
+appId: com.borkweb.curator
+productName: Curator
 directories:
   output: dist
 files:

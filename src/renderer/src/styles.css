@@ -1,4 +1,4 @@
-/* Doc Viewer — Cobalt Reader design system.
+/* Curator — Cobalt Reader design system.
    Source of truth: .claude/skills/design-system (tokens/, components/, readme.md).
    Cobalt Reader ships dark + an opt-in cobalt-tinted light mode. Here the two
    semantic token sets are scoped to [data-theme="dark"|"light"] so they can be

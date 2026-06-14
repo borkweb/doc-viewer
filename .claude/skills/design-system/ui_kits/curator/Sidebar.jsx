@@ -1,4 +1,4 @@
-/* Doc Viewer sidebar — project switcher, search, and the document tree.
+/* Curator sidebar — project switcher, search, and the document tree.
    Composes the DS primitives: Select, IconButton, Input, TreeItem, SearchResult, Badge. */
 const { Select, IconButton, Input, TreeItem, SearchResult, Badge } = window.CobaltReaderDesignSystem_feb28f
 

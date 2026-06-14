@@ -16,7 +16,7 @@ export interface TreeItemProps extends React.ButtonHTMLAttributes<HTMLButtonElem
 }
 
 /**
- * A row in Doc Viewer's navigation tree — a Document or a folder. Borderless,
+ * A row in Curator's navigation tree — a Document or a folder. Borderless,
  * full-width, accent-tinted on hover/active. Indent with `depth`.
  * @startingPoint section="Navigation" subtitle="Doc tree rows & folder labels" viewport="380x260"
  */

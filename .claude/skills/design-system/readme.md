@@ -1,20 +1,20 @@
-# Cobalt Reader — Doc Viewer Design System
+# Cobalt Reader — Curator Design System
 
-**Cobalt Reader** is the design system for **Doc Viewer**, a desktop (Electron) app
+**Cobalt Reader** is the design system for **Curator**, a desktop (Electron) app
 for browsing, navigating, and searching documentation drawn from local directories
 or GitHub repositories — one selectable **Project** at a time. It is a rich cobalt +
 slate theme that ships in **two modes — a signature dark mode (the default) and an
 opt-in light mode** — with electric blue and cyan highlights and a modern, IDE-like
 feel suited to technical documentation.
 
-In Doc Viewer's own vocabulary, a *Theme* is "a reusable, named, app-side look — a
+In Curator's own vocabulary, a *Theme* is "a reusable, named, app-side look — a
 palette of CSS custom-property overrides." Cobalt Reader is exactly that: a fully
 realized Theme with light + dark palettes, plus the reusable components and screens
 that compose it.
 
 ## Sources
 
-- **Codebase:** `doc-viewer/` (Electron + Vite + React renderer). Author: Matthew
+- **Codebase:** `curator/` (Electron + Vite + React renderer). Author: Matthew
   Batchelder. Key files studied:
   - `src/renderer/src/styles.css` — the stock token system (light/dark via
     `prefers-color-scheme`) this Theme re-skins.
@@ -47,7 +47,7 @@ consumer links; it `@import`s every token and font file.
 | `components/forms/` | `Button`, `IconButton`, `Input`, `Select` |
 | `components/display/` | `Badge`, `Card` |
 | `components/navigation/` | `TreeItem`, `SearchResult` |
-| `ui_kits/doc-viewer/` | Full interactive recreation of the Doc Viewer app |
+| `ui_kits/curator/` | Full interactive recreation of the Curator app |
 | `guidelines/*.card.html` | Foundation specimen cards (Design System tab) |
 | `SKILL.md` | Agent Skill manifest for downloaded use |
 
@@ -55,7 +55,7 @@ consumer links; it `@import`s every token and font file.
 
 ## CONTENT FUNDAMENTALS
 
-Doc Viewer's copy is **precise, quiet, and domain-disciplined** — it reads like a
+Curator's copy is **precise, quiet, and domain-disciplined** — it reads like a
 well-kept engineering glossary, because it is one.
 
 - **Voice:** Neutral and declarative. State what a thing *is* or *does*; don't sell
@@ -194,7 +194,7 @@ feel dimensional and IDE-like.
 
 - **Icon system: Font Awesome 6 (Free)**, loaded from CDN
   (`cdnjs … font-awesome/6.5.2/css/all.min.css`). This is a deliberate choice for
-  this design system — the stock Doc Viewer code used bare Unicode glyphs (e.g. a
+  this design system — the stock Curator code used bare Unicode glyphs (e.g. a
   "＋" for the add-project button); Cobalt Reader standardizes on Font Awesome so
   icons are consistent in weight and metrics.
 - **Style:** **Solid** (`fa-solid`) as the default single weight; **Brands**

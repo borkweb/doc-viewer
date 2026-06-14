@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":3,"namespace":"CobaltReaderDesignSystem_feb28f","components":[{"name":"Badge","sourcePath":"components/display/Badge.jsx"},{"name":"Card","sourcePath":"components/display/Card.jsx"},{"name":"Button","sourcePath":"components/forms/Button.jsx"},{"name":"IconButton","sourcePath":"components/forms/IconButton.jsx"},{"name":"Input","sourcePath":"components/forms/Input.jsx"},{"name":"Select","sourcePath":"components/forms/Select.jsx"},{"name":"SearchResult","sourcePath":"components/navigation/SearchResult.jsx"},{"name":"TreeItem","sourcePath":"components/navigation/TreeItem.jsx"}],"sourceHashes":{"components/display/Badge.jsx":"b169e3366758","components/display/Card.jsx":"e8eef55849ac","components/forms/Button.jsx":"6048e7443798","components/forms/IconButton.jsx":"afd9346e5b8e","components/forms/Input.jsx":"b2acefb582b7","components/forms/Select.jsx":"36f69ee1b3fb","components/navigation/SearchResult.jsx":"ab1adfdddad7","components/navigation/TreeItem.jsx":"d9eb72948700","ui_kits/doc-viewer/App.jsx":"88c0525ea76c","ui_kits/doc-viewer/Reader.jsx":"771f61194627","ui_kits/doc-viewer/Sidebar.jsx":"733bd03b5b31","ui_kits/doc-viewer/data.js":"d34030ffeac4"},"inlinedExternals":[],"unexposedExports":[]} */
+/* @ds-bundle: {"format":3,"namespace":"CobaltReaderDesignSystem_feb28f","components":[{"name":"Badge","sourcePath":"components/display/Badge.jsx"},{"name":"Card","sourcePath":"components/display/Card.jsx"},{"name":"Button","sourcePath":"components/forms/Button.jsx"},{"name":"IconButton","sourcePath":"components/forms/IconButton.jsx"},{"name":"Input","sourcePath":"components/forms/Input.jsx"},{"name":"Select","sourcePath":"components/forms/Select.jsx"},{"name":"SearchResult","sourcePath":"components/navigation/SearchResult.jsx"},{"name":"TreeItem","sourcePath":"components/navigation/TreeItem.jsx"}],"sourceHashes":{"components/display/Badge.jsx":"b169e3366758","components/display/Card.jsx":"e8eef55849ac","components/forms/Button.jsx":"6048e7443798","components/forms/IconButton.jsx":"afd9346e5b8e","components/forms/Input.jsx":"b2acefb582b7","components/forms/Select.jsx":"36f69ee1b3fb","components/navigation/SearchResult.jsx":"ab1adfdddad7","components/navigation/TreeItem.jsx":"d9eb72948700","ui_kits/curator/App.jsx":"99d0465c7fb6","ui_kits/curator/Reader.jsx":"08d239eef325","ui_kits/curator/Sidebar.jsx":"ae8ede273da3","ui_kits/curator/data.js":"b175e297f38c"},"inlinedExternals":[],"unexposedExports":[]} */
 
 (() => {
 
@@ -450,9 +450,9 @@ function TreeItem(props) {
 Object.assign(__ds_scope, { TreeItem });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "components/navigation/TreeItem.jsx", error: String((e && e.message) || e) }); }
 
-// ui_kits/doc-viewer/App.jsx
+// ui_kits/curator/App.jsx
 try { (() => {
-/* Doc Viewer — interactive app shell. Owns selection + search state and wires
+/* Curator — interactive app shell. Owns selection + search state and wires
    the sidebar to the reading pane, inside a minimal dark window frame. */
 const Sidebar = window.DVSidebar;
 const Reader = window.DVReader;
@@ -520,7 +520,7 @@ function App() {
     setScrollToId(r.headingId);
     setQuery('');
   };
-  const titleName = activeProject ? activeProject.name : 'Doc Viewer';
+  const titleName = activeProject ? activeProject.name : 'Curator';
   return /*#__PURE__*/React.createElement("div", {
     className: "dv-window"
   }, /*#__PURE__*/React.createElement(TitleBar, {
@@ -548,11 +548,11 @@ function App() {
   })));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
-})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/doc-viewer/App.jsx", error: String((e && e.message) || e) }); }
+})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/curator/App.jsx", error: String((e && e.message) || e) }); }
 
-// ui_kits/doc-viewer/Reader.jsx
+// ui_kits/curator/Reader.jsx
 try { (() => {
-/* Doc Viewer reading pane — renders a Document and its toolbar.
+/* Curator reading pane — renders a Document and its toolbar.
    Mermaid blocks are shown as a styled placeholder canvas (the real app renders
    them with mermaid + svg-pan-zoom). */
 const {
@@ -596,7 +596,7 @@ function Reader({
       className: "dv-empty-title"
     }, "Add or select a project to begin"), /*#__PURE__*/React.createElement("p", {
       className: "dv-empty-sub"
-    }, "Doc Viewer reads documentation from a local directory or a GitHub repository.")));
+    }, "Curator reads documentation from a local directory or a GitHub repository.")));
   }
   if (!doc) {
     return /*#__PURE__*/React.createElement("main", {
@@ -641,11 +641,11 @@ function Reader({
   }));
 }
 window.DVReader = Reader;
-})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/doc-viewer/Reader.jsx", error: String((e && e.message) || e) }); }
+})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/curator/Reader.jsx", error: String((e && e.message) || e) }); }
 
-// ui_kits/doc-viewer/Sidebar.jsx
+// ui_kits/curator/Sidebar.jsx
 try { (() => {
-/* Doc Viewer sidebar — project switcher, search, and the document tree.
+/* Curator sidebar — project switcher, search, and the document tree.
    Composes the DS primitives: Select, IconButton, Input, TreeItem, SearchResult, Badge. */
 const {
   Select,
@@ -777,20 +777,20 @@ function Sidebar({
   })));
 }
 window.DVSidebar = Sidebar;
-})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/doc-viewer/Sidebar.jsx", error: String((e && e.message) || e) }); }
+})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/curator/Sidebar.jsx", error: String((e && e.message) || e) }); }
 
-// ui_kits/doc-viewer/data.js
+// ui_kits/curator/data.js
 try { (() => {
-/* Fake data for the Doc Viewer UI kit — modeled on the real app's domain
+/* Fake data for the Curator UI kit — modeled on the real app's domain
    (Projects, Documents, Sections, Refs) and its own CONTEXT.md content. */
 (function () {
   const projects = [{
     id: 'p1',
-    name: 'Doc Viewer',
+    name: 'Curator',
     type: 'local',
     docCount: 18,
     status: 'ok',
-    sub: 'Local · ~/projects/doc-viewer'
+    sub: 'Local · ~/projects/curator'
   }, {
     id: 'p2',
     name: 'React',
@@ -858,11 +858,11 @@ try { (() => {
     'README.md': {
       title: 'Overview',
       html: `
-        <h1>Doc Viewer</h1>
+        <h1>Curator</h1>
         <p>A desktop app for browsing, navigating, and searching documentation drawn from
         local directories or GitHub repositories, one selectable <a href="#">Project</a> at a time.</p>
         <h2 id="what">What it does</h2>
-        <p>Point Doc Viewer at a folder or a repo and it discovers every markdown file,
+        <p>Point Curator at a folder or a repo and it discovers every markdown file,
         splits each <mark>Document</mark> into searchable Sections, and renders it with
         live diagrams and full-text search.</p>
         <ul>
@@ -871,7 +871,7 @@ try { (() => {
           <li>A per-Project Theme can override the global look.</li>
         </ul>
         <h2 id="quickstart">Quick start</h2>
-        <pre><code>$ doc-viewer ./docs
+        <pre><code>$ curator ./docs
 Indexed 18 documents · 142 sections
 Watching for changes…</code></pre>
         <blockquote>Local content is read live — there is nothing to fetch. "Reindex" just
@@ -882,7 +882,7 @@ Watching for changes…</code></pre>
       title: 'Domain model',
       html: `
         <h1>Domain model</h1>
-        <p>The vocabulary Doc Viewer is built around. A <mark>Project</mark> is the top-level
+        <p>The vocabulary Curator is built around. A <mark>Project</mark> is the top-level
         unit; everything else hangs off it.</p>
         <h2 id="entities">Core entities</h2>
         <table>
@@ -995,7 +995,7 @@ Watching for changes…</code></pre>
     sections
   };
 })();
-})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/doc-viewer/data.js", error: String((e && e.message) || e) }); }
+})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/curator/data.js", error: String((e && e.message) || e) }); }
 
 __ds_ns.Badge = __ds_scope.Badge;
 

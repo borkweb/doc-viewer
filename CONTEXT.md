@@ -1,4 +1,4 @@
-# Doc Viewer
+# Curator
 
 A desktop app for browsing, navigating, and searching documentation drawn from
 local directories or GitHub repositories, one selectable Project at a time.

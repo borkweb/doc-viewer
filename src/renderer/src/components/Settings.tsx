@@ -98,11 +98,11 @@ export default function Settings({ settings, onChange, onClose }: Props): React.
           </span>
           <a
             className="credit-gh"
-            href="https://github.com/borkweb/doc-viewer"
+            href="https://github.com/borkweb/curator"
             target="_blank"
             rel="noreferrer"
-            title="github.com/borkweb/doc-viewer"
-            aria-label="View doc-viewer on GitHub"
+            title="github.com/borkweb/curator"
+            aria-label="View curator on GitHub"
           >
             <i className="fa-brands fa-github" aria-hidden="true" />
           </a>

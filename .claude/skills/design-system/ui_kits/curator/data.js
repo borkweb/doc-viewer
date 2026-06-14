@@ -1,8 +1,8 @@
-/* Fake data for the Doc Viewer UI kit — modeled on the real app's domain
+/* Fake data for the Curator UI kit — modeled on the real app's domain
    (Projects, Documents, Sections, Refs) and its own CONTEXT.md content. */
 (function () {
   const projects = [
-    { id: 'p1', name: 'Doc Viewer', type: 'local', docCount: 18, status: 'ok', sub: 'Local · ~/projects/doc-viewer' },
+    { id: 'p1', name: 'Curator', type: 'local', docCount: 18, status: 'ok', sub: 'Local · ~/projects/curator' },
     { id: 'p2', name: 'React', type: 'github', docCount: 342, status: 'ok', ref: 'main', sub: 'github.com/reactjs/react.dev' },
     { id: 'p3', name: 'Tailwind CSS', type: 'github', docCount: 211, status: 'building', ref: 'v4', sub: 'Pull latest in progress…' }
   ]
@@ -25,11 +25,11 @@
     'README.md': {
       title: 'Overview',
       html: `
-        <h1>Doc Viewer</h1>
+        <h1>Curator</h1>
         <p>A desktop app for browsing, navigating, and searching documentation drawn from
         local directories or GitHub repositories, one selectable <a href="#">Project</a> at a time.</p>
         <h2 id="what">What it does</h2>
-        <p>Point Doc Viewer at a folder or a repo and it discovers every markdown file,
+        <p>Point Curator at a folder or a repo and it discovers every markdown file,
         splits each <mark>Document</mark> into searchable Sections, and renders it with
         live diagrams and full-text search.</p>
         <ul>
@@ -38,7 +38,7 @@
           <li>A per-Project Theme can override the global look.</li>
         </ul>
         <h2 id="quickstart">Quick start</h2>
-        <pre><code>$ doc-viewer ./docs
+        <pre><code>$ curator ./docs
 Indexed 18 documents · 142 sections
 Watching for changes…</code></pre>
         <blockquote>Local content is read live — there is nothing to fetch. "Reindex" just
@@ -49,7 +49,7 @@ Watching for changes…</code></pre>
       title: 'Domain model',
       html: `
         <h1>Domain model</h1>
-        <p>The vocabulary Doc Viewer is built around. A <mark>Project</mark> is the top-level
+        <p>The vocabulary Curator is built around. A <mark>Project</mark> is the top-level
         unit; everything else hangs off it.</p>
         <h2 id="entities">Core entities</h2>
         <table>

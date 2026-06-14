@@ -2,7 +2,7 @@
    UI uses the native system stack (no webfont needed). Code uses JetBrains
    Mono for the IDE feel — loaded from Google Fonts.
 
-   NOTE: JetBrains Mono is a deliberate enhancement over Doc Viewer's stock
+   NOTE: JetBrains Mono is a deliberate enhancement over Curator's stock
    system-mono stack, chosen for the "IDE-like feel" called for by the theme.
    It degrades gracefully to ui-monospace / SF Mono / Menlo if unavailable. */
 

@@ -1,4 +1,4 @@
-/* Doc Viewer — interactive app shell. Owns selection + search state and wires
+/* Curator — interactive app shell. Owns selection + search state and wires
    the sidebar to the reading pane, inside a minimal dark window frame. */
 const Sidebar = window.DVSidebar
 const Reader = window.DVReader
@@ -49,7 +49,7 @@ function App() {
   const openDoc = (path) => { setDocPath(path); setScrollToId(null) }
   const onOpenResult = (r) => { setDocPath(r.docPath); setScrollToId(r.headingId); setQuery('') }
 
-  const titleName = activeProject ? activeProject.name : 'Doc Viewer'
+  const titleName = activeProject ? activeProject.name : 'Curator'
 
   return (
     <div className="dv-window">

@@ -19,7 +19,7 @@
               "components/display/**",
               "components/forms/**",
               "components/navigation/**",
-              "ui_kits/doc-viewer/**"
+              "ui_kits/curator/**"
             ],
             "message": "Import design-system components from 'index.js', not component internals."
           }

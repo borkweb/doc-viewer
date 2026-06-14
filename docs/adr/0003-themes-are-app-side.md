@@ -15,7 +15,7 @@ the surface we are trying to keep closed.
 
 ## Considered Options
 
-- **Repo-shipped themes** (e.g. a `.docviewer/theme.json` in the repo) — convenient,
+- **Repo-shipped themes** (e.g. a `.curator/theme.json` in the repo) — convenient,
   lets projects self-brand their docs, and "just works" on clone. Rejected: it
   reintroduces untrusted, repo-controlled config + asset references into the trust
   boundary, and themes would then have to be re-sanitized/sandboxed.

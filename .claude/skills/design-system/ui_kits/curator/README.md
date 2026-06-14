@@ -1,6 +1,6 @@
-# Doc Viewer — UI kit
+# Curator — UI kit
 
-An interactive, high-fidelity recreation of the **Doc Viewer** desktop app in the
+An interactive, high-fidelity recreation of the **Curator** desktop app in the
 Cobalt Reader theme. It composes the design-system primitives — it does not
 re-implement them.
 

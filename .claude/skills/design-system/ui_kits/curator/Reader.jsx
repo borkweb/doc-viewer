@@ -1,4 +1,4 @@
-/* Doc Viewer reading pane — renders a Document and its toolbar.
+/* Curator reading pane — renders a Document and its toolbar.
    Mermaid blocks are shown as a styled placeholder canvas (the real app renders
    them with mermaid + svg-pan-zoom). */
 const { Button, Badge } = window.CobaltReaderDesignSystem_feb28f
@@ -29,7 +29,7 @@ function Reader({ project, doc, docPath, scrollToId }) {
         <div className="dv-empty">
           <i className="fa-solid fa-book-open"></i>
           <p className="dv-empty-title">Add or select a project to begin</p>
-          <p className="dv-empty-sub">Doc Viewer reads documentation from a local directory or a GitHub repository.</p>
+          <p className="dv-empty-sub">Curator reads documentation from a local directory or a GitHub repository.</p>
         </div>
       </main>
     )

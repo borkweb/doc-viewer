@@ -75,7 +75,7 @@ tests/
 
 ```json
 {
-  "name": "doc-viewer",
+  "name": "curator",
   "version": "0.1.0",
   "description": "Desktop viewer for local and GitHub documentation",
   "license": "MIT",
@@ -280,7 +280,7 @@ contextBridge.exposeInMainWorld('api', {
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
-    <title>Doc Viewer</title>
+    <title>Curator</title>
   </head>
   <body>
     <div id="root"></div>
@@ -305,14 +305,14 @@ createRoot(document.getElementById('root')!).render(
 `src/renderer/src/App.tsx`:
 ```tsx
 export default function App(): React.JSX.Element {
-  return <h1>Doc Viewer</h1>
+  return <h1>Curator</h1>
 }
 ```
 
 - [ ] **Step 9: Run the app to verify the scaffold boots**
 
 Run: `bun run dev`
-Expected: an Electron window opens showing "Doc Viewer". Close it (Ctrl-C in terminal).
+Expected: an Electron window opens showing "Curator". Close it (Ctrl-C in terminal).
 
 - [ ] **Step 10: Commit**
 
@@ -2065,8 +2065,8 @@ Add these entries to the `scripts` block:
 - [ ] **Step 3: Create `electron-builder.yml`**
 
 ```yaml
-appId: com.borkweb.docviewer
-productName: Doc Viewer
+appId: com.borkweb.curator
+productName: Curator
 directories:
   output: dist
 files:
@@ -2081,7 +2081,7 @@ mac:
 - [ ] **Step 4: Produce an unpacked local build**
 
 Run: `bun run build:mac`
-Expected: `dist/mac*/Doc Viewer.app` is produced. Launch it to confirm it opens and you can add a local project.
+Expected: `dist/mac*/Curator.app` is produced. Launch it to confirm it opens and you can add a local project.
 
 - [ ] **Step 5: Commit**
 

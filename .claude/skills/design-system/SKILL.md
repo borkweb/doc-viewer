@@ -1,6 +1,6 @@
 ---
 name: cobalt-reader-design
-description: Use this skill to generate well-branded interfaces and assets for Doc Viewer's Cobalt Reader theme — a rich cobalt + slate dark theme with electric blue/cyan highlights and an IDE-like feel for technical documentation. Use for production renderer UI or throwaway prototypes/mocks/slides. Contains design guidelines, color/type/spacing tokens, fonts, Font Awesome iconography, and reusable React UI kit components.
+description: Use this skill to generate well-branded interfaces and assets for Curator's Cobalt Reader theme — a rich cobalt + slate dark theme with electric blue/cyan highlights and an IDE-like feel for technical documentation. Use for production renderer UI or throwaway prototypes/mocks/slides. Contains design guidelines, color/type/spacing tokens, fonts, Font Awesome iconography, and reusable React UI kit components.
 user-invocable: true
 ---
 
@@ -19,7 +19,7 @@ file. Then explore the other files as needed.
 - `components/` — reusable React primitives (`Button`, `IconButton`, `Input`,
   `Select`, `Badge`, `Card`, `TreeItem`, `SearchResult`). Each has a `.d.ts` props
   contract and a `.prompt.md` usage note.
-- `ui_kits/doc-viewer/` — a full interactive recreation of the Doc Viewer app.
+- `ui_kits/curator/` — a full interactive recreation of the Curator app.
 - `guidelines/*.card.html` — foundation specimen cards (colors, type, spacing, icons).
 
 ## How to use it
@@ -41,7 +41,7 @@ file. Then explore the other files as needed.
 
 If creating visual artifacts (slides, mocks, throwaway prototypes), copy assets out
 and produce static HTML files for the user to view, linking `styles.css` and the
-Font Awesome CDN. If working in the real Doc Viewer codebase, read the rules here and
+Font Awesome CDN. If working in the real Curator codebase, read the rules here and
 keep styling in the renderer's token system.
 
 If invoked with no other guidance, ask the user what they want to build, ask a few

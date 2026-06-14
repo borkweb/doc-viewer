@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "doc-viewer",
+      "name": "curator",
       "dependencies": {
         "dompurify": "^3.4.10",
         "marked": "^12.0.2",
