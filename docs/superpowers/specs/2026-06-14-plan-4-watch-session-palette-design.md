@@ -41,6 +41,12 @@ E3's restore + scroll machinery for its silent re-render — lands last.
 **Out of scope (later plans)**
 - **Palette tier 3** (cross-project cached GitHub docs) — needs a new
   manifest-enumeration IPC; deferred.
+- **Fuzzy `<mark>` highlighting** — v1 is **rank-only**: `lib/fuzzy.ts` returns a
+  single numeric score and the list is ordered by it; no per-character `<mark>`
+  spans are rendered in result labels. Highlighting the matched characters is a
+  deferred **fast-follow** (it reuses the same scorer, adding a match-index pass).
+- **Results virtualization** — the Documents tier is hard-capped (see E4 overflow)
+  rather than windowed; no virtual scroller is introduced.
 - **Incremental reindex** — E2 does a debounced *full* reindex; no per-file patching.
 - **Linux recursive watch** — `fs.watch` `recursive` is a no-op on Linux; E2 degrades
   to non-recursive + a note, with manual Reindex as the fallback. No `chokidar`-style
@@ -112,9 +118,9 @@ export function saveSession(s: SessionState): void
 - **Scope (D4-5):** persist **last project** (`lastProjectId`) + **last doc + scroll
   anchor per project** (`perProject[projectId]`). Switching projects updates
   `lastProjectId`; opening a doc updates that project's `DocAnchor`.
-- **Scroll anchor (D4-5):** **not** a pixel offset. On scroll (throttled) and on doc
-  change, compute the `id` of the nearest rendered heading at/above the `.content`
-  scroll-container top and store it as `headingId`. Restore scrolls that heading into
+- **Scroll anchor (D4-5):** **not** a pixel offset. On scroll (throttled **~250 ms**,
+  trailing) and on doc change, compute the `id` of the nearest rendered heading
+  at/above the `.content` scroll-container top and store it as `headingId`. Restore scrolls that heading into
   view. Pixels are intentionally avoided because E2's live re-render shifts layout and
   invalidates any saved offset.
 
@@ -194,8 +200,10 @@ CREATED
 **New `src/renderer/src/components/CommandPalette.tsx`** + **`src/renderer/src/lib/fuzzy.ts`**
 (a hand-rolled subsequence scorer — **no dependency**; cannot npm-install). The palette
 is **data-driven from state already held in `App`:** `projects`, `tree`, and the bound
-callbacks `selectProject` / `openDoc` / `switchRef` / `setView` / `setAddOpen` /
-`setSettingsOpen` / `rebuild`. App passes these in; the palette holds no IPC of its own.
+callbacks `selectProject` / `openDoc` / `focusBranchSwitcher` (the "Switch ref…" command
+— App focuses the existing `BranchSwitcher`, the palette does not switch refs itself) /
+`setView` / `setAddOpen` / `setSettingsOpen` / `rebuild`. App passes these in; the
+palette holds no IPC of its own.
 
 **Keybinding (D4-8) — first app-level key handler in the codebase:**
 - A single App-level `keydown` listener toggles the palette on **⌘K (mac) / Ctrl+K
@@ -225,62 +233,232 @@ callbacks `selectProject` / `openDoc` / `switchRef` / `setView` / `setAddOpen` /
 | "Manage projects" | `setView('manage')` |
 | "Pull latest / Reindex" | `rebuild()` (label adapts: "Reindex" for local, "Pull latest" for github — both map to `rebuildProject`) |
 | "Settings" | `setSettingsOpen(true)` |
-| "Switch ref…" | (github active only) opens the existing ref switcher / lists refs as sub-items via `switchRef` |
+| "Switch ref…" | (github active only) **closes the palette and opens the existing `BranchSwitcher`** (status bar) — focuses its ref `<select>`. **No inline ref sub-items** in the palette; ref selection happens in the existing switcher via `switchRef`. |
 
 Items whose action requires an active project (Documents, Reindex, Switch ref) are
 **hidden** when no project is active. **Tier 3** (cross-project cached GitHub docs) is
 **deferred** — it needs a new manifest-enumeration IPC.
 
-### E4 — UI design detail
+### E4 — UI design detail (command palette)
 
-Reuses `.modal-overlay` scrim + a centered `.modal`-style panel (Cobalt Reader
-`--surface`, `--border`, `--radius-lg`, `--shadow`), pinned toward the top third of the
-window (palette convention), max-height with an internal scroll on the results list.
+The palette is the one genuinely **new** surface in Plan 4, so its design is
+specified to implementation depth here. It is **not** a generic Spotlight clone: it is
+a Curator chrome surface that happens to float — dense rows, mono doc paths, the
+existing `local`/`github` chips, Font Awesome glyphs already in the app, and Cobalt
+Reader tokens throughout.
 
-**States:**
+#### Panel & layout
+
+- Reuses `.modal-overlay` (scrim + `blur(2px)`) and a centered-horizontally,
+  **top-pinned** `.modal`-style panel — the palette convention is *near the top*, not
+  dead-center. Pin offset: `margin-top: 12vh` (≈ top third), so the eye lands on the
+  search field, not the middle of the window.
+- **Width** `min(640px, 92vw)` — wider than the 440px Settings modal because rows carry
+  a label + path; **radius** `--radius-xl` (modal class), **shadow** `--shadow-lg`,
+  fill `--surface-raised`, hairline `--border` — identical chrome to Settings/Add.
+- **Structure:** a header row holding the search input (no title bar — the input *is*
+  the affordance), a hairline divider, then a scrolling results region capped at
+  `max-height: min(56vh, 420px)` with the list scrolling internally (`overflow-y:auto`).
+  Group headers are sticky within that scroll region.
+- New CSS lives under a `.palette-*` namespace built on `.modal-overlay` + tokens
+  (`styles.css` touch point already listed) — no bespoke colors or radii.
+
+#### Information hierarchy of a result row
+
+Every row is one flex line: **type icon · primary label · secondary hint** (· trailing
+chip for Projects). One register only — `--text-ui` (13px), the dense chrome size. The
+three tiers are distinguished by **icon + group header**, not by differing row heights
+or fonts (keeps the list calm and scannable).
+
+| Tier | Leading icon | Primary (`--fg`) | Secondary (`--muted`) | Trailing |
+|------|--------------|------------------|------------------------|----------|
+| **Projects** | `fa-folder` (local) / `fa-github` (github) | project `name` | — | `local`/`github` chip (`[data-chip]`, lowercase) |
+| **Documents** | `fa-file-lines` | doc `title` | relative path, **monospace** (`--font-mono`, `--muted`, ellipsized left/RTL) | — |
+| **Commands** | per-command glyph (below) | verb label | — | — |
+
+- **Primary** is `--fg`, weight 400 at rest; the **highlighted** row goes
+  `--accent-soft` background + `--accent` text + weight 600 — the exact treatment
+  `.tree-item.active` already uses, so palette selection reads identically to a selected
+  tree row.
+- **Doc path is the only monospace element** — the IDE tell. It ellipsizes (RTL, like
+  `.status-source-text`) so the meaningful tail (filename) stays visible.
+- Command glyphs reuse the app's existing vocabulary: `fa-plus` (Add project),
+  `fa-list` (Manage projects), `fa-rotate` (Pull latest / Reindex), `fa-gear`
+  (Settings), `fa-code-branch` (Switch ref…).
+
+#### Compact ASCII mock (empty query, project active)
+
+The **empty query** state lists **Projects + Commands only** — **no Documents tier**.
+Documents are numerous and only meaningful once the user has a search term, so the
+empty state shows a single muted **hint** where the Documents group would be:
 
 ```
-OPEN (empty query)        | LOADING            | RESULTS                       | NO MATCH
---------------------------|--------------------|-------------------------------|---------------------------
-search field focused;     | n/a — all data is  | grouped, scored list;         | muted empty row:
-recent/default listing    | already in App     | first item highlighted        | "No matches."
-(all projects + current   | state (instant).   | (keyboard-selected)           | with the .empty vocabulary
-project docs + commands)  |                    |                               |
+┌──────────────────────────────────────────────────────────────┐
+│ 🔍  Search projects, docs, and commands…                     │  ← input, autofocus
+├──────────────────────────────────────────────────────────────┤
+│ PROJECTS                                                     │  ← sticky group header
+│   📁  Curator                                       [local]  │
+│ ▌ 🐙  design-system-docs                           [github]  │  ← highlighted (accent-soft)
+│   📁  api-handbook                                  [local]  │
+│   Type to search documents…                                 │  ← muted hint (not a row; no Documents tier yet)
+│ COMMANDS                                                     │
+│   ＋  Add project                                            │
+│   ↻  Reindex                                                │
+│   ⎇  Switch ref…                                            │
+│   ⚙  Settings                                               │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-- **Open / empty query:** focus the search input immediately; show the full tiered
-  list (Projects, then current-project Documents, then Commands) so the palette is
-  useful before typing. There is **no loading state** — all data lives in renderer
-  state already (instant).
+Once the user types, the **Documents** group appears (scored, see overflow cap
+below) between Projects and Commands and the hint disappears.
+
+(Glyphs are illustrative; the real surface uses the Font Awesome classes named above.)
+
+#### Interaction states
+
+```
+OPEN (empty query)        | RESULTS (typing)              | NO MATCH
+--------------------------|-------------------------------|---------------------------
+input autofocused;        | grouped, scored list;         | input retains text;
+Projects + Commands only  | first/highest-scored row      | single muted row:
+(NO Documents tier);      | highlighted; non-empty        | "No matches."
+muted hint where Docs     | groups only; rank-only        | (.empty vocabulary;
+would be:                 | scoring (no <mark>); Docs tier |  no Add CTA)
+"Type to search docs…"    | hard-capped (see overflow)    |
+```
+
+- **Open / empty query (autofocus):** focus the input immediately on mount; show
+  **Projects + the Command set only** — the **Documents tier is omitted** until the user
+  types (docs are numerous and only meaningful with a query). Where the Documents group
+  would sit, render a single muted **hint line** "Type to search documents…" (the
+  `.palette-hint` vocabulary — muted copy, **not** a selectable row, skipped by arrow
+  nav). The **first row is pre-highlighted** so Enter is meaningful immediately. **No
+  loading state** — all data is already in renderer state (instant); there is no async
+  fetch and therefore no spinner.
 - **Results:** as the user types, `lib/fuzzy.ts` scores each item by subsequence match
-  against its label (and, for docs, the path); items below a threshold are dropped.
-  **Ordering:** within the result set, sort by score descending; **ties broken by tier
-  order** (Projects → Documents → Commands) so the grouping stays legible. Group
-  headers ("Projects", "Documents", "Commands") render only for non-empty groups.
-- **No match:** query matches nothing → a single muted row **"No matches."** (no Add
-  CTA — distinct from a true empty registry).
+  against its label (and, for Documents, the path too) and returns a **single numeric
+  score**; sub-threshold items drop. The **Documents tier now appears** (between Projects
+  and Commands). **Scoring is rank-only for v1** — the scorer **favors prefix and
+  contiguous matches** so a higher-ranked row is obviously the better match without any
+  `<mark>` character highlighting (that is a deferred fast-follow). **Ordering:** score
+  descending; **ties broken by tier order** (Projects → Documents → Commands) so grouping
+  stays legible. Group headers render only for non-empty groups. After every keystroke
+  the highlight resets to the **first** (top-scored) row.
+- **No match:** a single muted **"No matches."** row in the `.empty` vocabulary — no Add
+  CTA (distinct from a truly empty registry, which is the home empty-state's job).
+- **Keyboard-selected row:** exactly one row carries the highlight at all times (never
+  zero) — `--accent-soft` bg + `--accent` text + weight 600, mirroring
+  `.tree-item.active`. The highlighted row is always scrolled into view
+  (`scrollIntoView({ block: 'nearest' })`).
+- **No project active:** Documents, Pull latest / Reindex, and Switch ref… are
+  **hidden** (their actions need an active project). The palette still lists Projects +
+  Add project / Manage projects / Settings, so it is never empty on a fresh launch.
+- **Documents overflow (hard cap, no virtualization):** the Documents tier is capped at
+  **~50 results by score**. When more docs match, render the top 50 and append a single
+  muted, **non-selectable** overflow row "…and N more — keep typing" (the
+  `.palette-more` vocabulary; skipped by arrow nav, like a group header) that nudges the
+  user to narrow the query rather than scroll. Projects and Commands are small fixed sets
+  and are **not** capped. No virtual scroller is introduced (out of scope); the capped
+  list scrolls normally within the results region.
 
-**Keyboard navigation:**
-- **↑ / ↓** move the highlight across the *flattened* result list (skipping group
-  headers), wrapping at the ends.
-- **Enter** activates the highlighted item's jump action and **closes** the palette.
-- **Escape** closes the palette (precedence: palette first — see keybinding).
-- Mouse hover also sets the highlight; click activates.
-- Focus rings / highlight use `--accent` / `--accent-ring`.
+#### Motion
 
-**Verbatim copy:**
+- **Open:** overlay scrim fades in and the panel rises a few px into place —
+  `--transition-slow` (220ms) with `--ease-out`, capped **≤200ms** for the panel
+  (`opacity` + `transform: translateY(-4px)→0`). **Close:** instant (unmount) — no exit
+  animation to slow down repeat invocations.
+- **Row highlight / hover** color shifts use `--transition` (120ms), same as tree rows.
+- **`prefers-reduced-motion: reduce` → no entrance transform/fade; the panel appears
+  instantly** (mirrors the `.manage-project-row` reduced-motion guard already in
+  `styles.css`).
+
+#### Keyboard model
+
+| Key | Behavior |
+|-----|----------|
+| **⌘K / Ctrl+K** | Toggle palette open/closed (App-level `keydown`, `preventDefault`; fires even when an input is focused — see Keybinding). |
+| **↑ / ↓** | Move highlight across the **flattened** result list, **skipping group headers**, **wrapping** at both ends (↓ past last → first; ↑ past first → last). Highlighted row is scrolled into view (`block:'nearest'`). |
+| **Enter** | Activate the highlighted row's jump action, then **close** the palette. |
+| **Escape** | Close the palette — **topmost-surface-only** (stops propagation; see below). |
+| **Tab / Shift+Tab** | Focus stays trapped within the palette (input ↔ list); does not leak to the underlying app. |
+
+- Mouse **hover** also sets the highlight (so keyboard and pointer never disagree);
+  **click** activates the row.
+- The input keeps DOM focus the whole time; ↑/↓/Enter are handled on the input's
+  `keydown` and drive a `activeIndex` state (roving virtual selection via
+  `aria-activedescendant`), so the user types and navigates without a focus hop.
+
+#### Escape precedence — composing with the 5 existing handlers
+
+Plan 4 introduces the first App-level key handler. The codebase already has **five**
+per-surface Escape handlers: **Settings**, **TopBar Contents menu**, **StatusBar
+diagram menu**, **BranchSwitcher**, and **ManageProjects inline rename**. The rule is
+**Escape closes the topmost surface only**:
+
+- The palette's Escape handler calls `stopPropagation()` so a single Escape closes the
+  **palette** and nothing underneath it also reacts.
+- **Modal stacking:** if a modal (Add / Settings) is already open, **⌘K is suppressed**
+  — we do not stack the palette over another modal. (Simpler and avoids two surfaces
+  fighting over Escape; the palette is a primary navigation surface, not something you
+  reach for mid-modal.)
+- This must be **verified against all five** handlers under the topmost-surface rule
+  (cross-slice note already calls this out).
+
+#### Verbatim copy
 
 | Element | Copy |
 |---------|------|
-| Search placeholder | "Search projects, docs, and commands…" |
-| No-match row | "No matches." |
-| Group headers | "Projects" / "Documents" / "Commands" |
-| Command labels | "Add project" / "Manage projects" / "Pull latest / Reindex" / "Settings" / "Switch ref…" |
+| Search placeholder | `Search projects, docs, and commands…` |
+| Empty-query docs hint | `Type to search documents…` (muted; shown only when the query is empty) |
+| Documents overflow row | `…and N more — keep typing` (muted; `N` = matched docs beyond the ~50 cap) |
+| No-match row | `No matches.` |
+| Group header — Projects | `Projects` |
+| Group header — Documents | `Documents · <project name>` (names the current project, since docs are scoped to it) |
+| Group header — Commands | `Commands` |
+| Command label — add | `Add project` |
+| Command label — manage | `Manage projects` |
+| Command label — rebuild (local) | `Reindex` |
+| Command label — rebuild (github) | `Pull latest` |
+| Command label — ref | `Switch ref…` (trailing ellipsis = opens a further chooser) |
+| Command label — settings | `Settings` |
+| Delete-of-open-doc notice (E2) | `This document was removed.` |
 
-**AI-slop guardrails:** no hero, no oversized icons, no gradient. Tight rows,
-monospace muted doc paths (IDE feel), the same `local`/`github` chips used elsewhere,
-Cobalt Reader surface/border tokens, and the existing `.modal` chrome — no new
-component vocabulary.
+All sentence case, terse, canonical vocabulary (Project / Document / Ref; "Reindex" /
+"Pull latest", never "Refresh"). The rebuild command label **adapts to the active
+project's source** — it is never literally "Pull latest / Reindex" in the UI; it shows
+the one that applies.
+
+#### Accessibility
+
+- **Roles:** overlay panel is `role="dialog"` `aria-modal="true"` `aria-label="Command
+  palette"` (mirrors Settings). The results region is `role="listbox"`; each row is
+  `role="option"` with a stable `id`; group headers are `role="presentation"` (skipped
+  by arrow nav and by AT as options).
+- **Selection:** the input owns focus and carries `aria-activedescendant={highlighted
+  option id}` — a roving **virtual** focus, so screen readers announce the highlighted
+  row as the user arrows without moving DOM focus off the input. `aria-selected="true"`
+  on the highlighted option.
+- **Targets:** rows are comfortable click targets — `min-height: 32px` is the chrome
+  norm here; on this **desktop-only** Electron surface 44px is not required, but rows
+  must not be denser than the 28–32px chrome controls elsewhere. (Note the desktop
+  context explicitly so a reviewer doesn't flag the sub-44px rows.)
+- **Contrast & focus:** all color via tokens (`--fg` on `--surface-raised`,
+  `--muted` for paths/headers) which already meet contrast in both themes; the
+  highlighted row uses `--accent-soft`/`--accent`. The input keeps a visible
+  `--accent-ring` focus halo. Focus is **trapped** in the dialog and **restored** to the
+  previously focused element on close.
+
+#### AI-slop guardrails (what makes this Curator, not Spotlight)
+
+- **No hero, no oversized icons, no gradient, no glow on the panel.** The cobalt glow is
+  reserved for primary-button hover, not chrome surfaces — the palette uses the flat
+  `.modal` chrome.
+- **Dense, single-register rows** (`--text-ui`), 4px rhythm, hairline group dividers —
+  the same calm surface as the sidebar tree, not a roomy launcher.
+- **Monospace only where it earns it:** the doc path. Everything else is the UI font.
+- **Reuse, don't reinvent:** `.modal-overlay`/`.modal` chrome, the `local`/`github`
+  chip, `.empty` no-match vocabulary, `.tree-item.active` highlight treatment, and Font
+  Awesome glyphs already in the app. No new component vocabulary, no new color.
 
 ### E4 data flow
 
@@ -300,18 +478,25 @@ Escape → close palette (topmost-surface rule)
 **Renderer (bun + jsdom, the `tests/addProjectModal.test.ts` harness)**
 - ⌘K / Ctrl+K opens the palette; Escape closes it; the open handler fires even when an
   input is focused.
-- Empty query lists all projects, current-project docs, and the command set, grouped.
-- Typing filters via `lib/fuzzy.ts`; a unique subsequence narrows to the expected item;
-  a non-matching query shows the **"No matches."** row.
+- **Empty query** lists all projects **+ the command set only** (NO Documents tier) and
+  renders the muted **"Type to search documents…"** hint, grouped.
+- **Typing surfaces the Documents tier:** with a query, `lib/fuzzy.ts` filters and the
+  Documents group appears; a unique subsequence narrows to the expected item; a
+  non-matching query shows the **"No matches."** row and the hint is gone.
 - Selecting a project item calls `selectProject(id)` and closes; a doc item calls
   `openDoc(path)`; each command label invokes its bound callback.
+- **"Switch ref…"** (github active) closes the palette and focuses the BranchSwitcher's
+  ref `<select>` (no inline ref sub-items).
 - Document/Reindex/Switch-ref items are hidden when no project is active.
-- ↑/↓ move the highlight (skipping headers, wrapping); Enter activates the highlighted
-  item.
+- **Documents cap:** with >50 matching docs, only 50 doc rows render plus the muted
+  **"…and N more — keep typing"** overflow row (non-selectable).
+- ↑/↓ move the highlight (skipping headers, the hint, and the overflow row; wrapping);
+  Enter activates the highlighted item.
 - **Escape precedence:** with the palette over a base view, Escape closes the palette
   and does not also trigger a component-level Escape handler.
-- **`lib/fuzzy.ts` unit:** subsequence match scores contiguous/prefix matches higher;
-  non-subsequence returns no match.
+- **`lib/fuzzy.ts` unit:** returns a **single numeric score**; prefix and contiguous
+  matches score higher than scattered subsequence matches; a non-subsequence returns
+  `0` / no match (so the caller drops it).
 
 ### E4 touch points
 
@@ -335,10 +520,14 @@ restore + scroll-preserve behavior for the silent re-render and adds the only ne
 
 ### E2 architecture
 
-**Watcher (main, D4-1):** when a **local** project becomes active, start a
-`node:fs` `watch(root, { recursive: true })`. On a fired event, schedule a debounced
-reindex (below). Stop/replace the watcher when the active project changes or the window
-closes. **GitHub projects are never watched** (cache-backed, clone deleted).
+**Watcher (main, D4-1):** a new `src/main/watcher.ts` module owns a single active
+watcher. When a **local** project becomes active, start a `node:fs`
+`watch(root, { recursive: true })`. On a fired event, schedule a debounced reindex
+(below). Stop/replace the watcher when the active project changes or the window closes.
+**GitHub projects are never watched** (cache-backed, clone deleted). For testability the
+`watch` function is **injectable** (the test passes a fake watch fn, exactly as
+`clone.ts` injects `spawn`) so the debounce + active-id guard are unit-testable with no
+real filesystem events.
 
 - **Platform (D4-1):** `recursive` works on **macOS/Windows**. On **Linux** it's a
   no-op → degrade to a **non-recursive** watch on the root plus a logged note; manual
@@ -356,13 +545,22 @@ quiet does). The reindex is a **full** reindex reusing the existing
 push the new tree to the renderer.
 
 **New push channel `index:changed` (E2, mirrors `build:progress`):**
-- Main: `e.sender.send('index:changed', { projectId, tree, docCount })` (same
-  `isDestroyed()` guard as `build:progress`).
+- **The plumbing problem (resolved):** `build:progress` rides on the IPC *invoke* event
+  (`e.sender.send`), but a watcher event fires **asynchronously**, outside any IPC call —
+  there is no `e`. So the watcher cannot reach the renderer the way `progressTo(e)` does.
+- **Resolution — capture `webContents` at window creation.** `src/main/index.ts` already
+  builds the single `BrowserWindow` in `createWindow()`. Store that window in a
+  module-level ref and expose its `webContents` to the watcher layer (e.g. a
+  `setMainWindow(win)` / `getMainWindow()` accessor in a small main module, or pass
+  `win.webContents` into the watcher-owning service when the window is created). On
+  `'closed'`, clear the ref. The watcher pushes via the captured
+  `webContents.send('index:changed', { projectId, tree, docCount })`, guarded by
+  `!webContents.isDestroyed()` (same intent as `build:progress`'s `isDestroyed()` guard).
+- **Active-id guard at the push site:** the push fires **only** when
+  `active?.id === watchedId` (the project the watcher was started for is still the active
+  one). A debounced reindex that resolves after the user switched away pushes nothing.
 - Preload: add `onIndexChanged(cb)` returning an unsubscribe fn (mirror
   `onBuildProgress`); add it to `IpcApi` in `src/shared/types.ts`.
-- The watcher needs the active `BrowserWindow`'s `webContents` to push to — wire it
-  when the window/active project is established (the watcher is owned by main, keyed to
-  the active local project).
 
 **Renderer handling of `index:changed`:**
 - App subscribes via `onIndexChanged`. On a push for the **active** project: `setTree`
@@ -374,9 +572,12 @@ push the new tree to the renderer.
   debounce so a burst of saves doesn't thrash. This is the concrete dependency on E3
   landing first.
 - **Delete-of-open-doc (D4-3):** if `docPath` is set and **no longer** in the new tree,
-  clear to the empty content state and show a gentle, transient notice **"This document
-  was removed."** (drawn from the `.empty-state` vocabulary). The sidebar tree simply
-  updates to no longer list it.
+  clear the open doc to the content empty-state and show a gentle notice **"This document
+  was removed."** rendered in the `.empty-state` vocabulary (centered, `--muted` copy,
+  a single `--faint` `fa-file-circle-xmark` `.empty-icon`). It replaces the usual
+  "Select a document." empty copy for this case; selecting any other doc (or opening one
+  from the palette) clears it. No toast, no modal — it is the empty content pane itself.
+  The sidebar tree simply updates to no longer list the removed doc.
 
 ### E2 — what the user sees
 
@@ -431,13 +632,13 @@ push the new tree to the renderer.
 ```
 MODIFIED
   src/shared/types.ts             # IpcApi.onIndexChanged; IndexChanged payload type
-  src/main/index.ts               # own/tear-down the active-project watcher with the window
-  src/main/projectService.ts      # watcher lifecycle + debounced reindex; reuse selectLocal; active-id guard
-  src/main/ipc.ts                 # index:changed e.sender.send wiring (mirror build:progress)
+  src/main/index.ts               # capture the BrowserWindow at createWindow(); wire projectService.setIndexSink() to push index:changed via the captured webContents (NOT e.sender — the watcher has no invoke event), isDestroyed guard; clear on 'closed'
+  src/main/projectService.ts      # setIndexSink(); watcher lifecycle (start watch after a local selectProject, tear down on every active replacement via stopWatch) + debounced reindex; reuse selectLocal; active-id guard at the push site
   src/preload/index.ts            # onIndexChanged bridge (mirror onBuildProgress)
   src/renderer/src/App.tsx        # subscribe onIndexChanged; tree update; open-doc preserve/notice
   src/renderer/src/styles.css     # .doc-removed-notice (built on .empty-state tokens) if needed
 CREATED
+  src/main/watcher.ts             # fs.watch recursive + 300ms trailing/leading-suppressed debounce (injectable watch fn like clone.ts injects spawn); Linux degrade
   tests/watch.test.ts             # backend: debounce + active-id guard + github-never-watched (mocked fs.watch)
   tests/indexChanged.test.ts      # renderer: tree update + open-doc preserve/remove notice (web tsconfig)
 ```
