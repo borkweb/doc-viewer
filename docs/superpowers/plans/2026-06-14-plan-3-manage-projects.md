@@ -34,7 +34,7 @@ MODIFIED
   src/renderer/src/lib/theme.ts             # re-export shared ThemeChoice; CHOICES from THEME_CHOICES
   src/main/registry.ts                      # findGithubByIdentity collision helper (reuse githubIdentity)
   src/main/projectService.ts                # setDocsSubpath orchestration
-  src/main/ipc.ts                           # projects:setDocsSubpath handler (streams progress)
+  src/main/ipc.ts                           # updateSettings themeId narrowed (Task 1); projects:setDocsSubpath handler (Task 3)
   src/preload/index.ts                      # setDocsSubpath bridge method
   src/renderer/src/App.tsx                  # view mode, manage wiring, per-project doc theme, delete-active
   src/renderer/src/components/TopBar.tsx    # "Manage projects" toggle button
@@ -48,13 +48,14 @@ CREATED
   tests/setDocsSubpath.test.ts              # backend orchestration (node)
   tests/manageProjects.test.ts              # renderer (web tsconfig)
   tests/topBarManage.test.ts                # renderer (web tsconfig)
+  tests/appDeleteActive.test.ts             # one App-level delete-active integration test (web tsconfig)
 ```
 
 ---
 
-## Task 1 — Shared `ThemeChoice`, narrowed `themeId`, and `IpcApi.setDocsSubpath`
+## Task 1 — Shared `ThemeChoice`, narrowed `themeId`, and `ipc.ts` alignment
 
-**Files:** `src/shared/types.ts`, `src/renderer/src/lib/theme.ts`, `tests/manageTypes.test.ts`
+**Files:** `src/shared/types.ts`, `src/renderer/src/lib/theme.ts`, `src/main/ipc.ts`, `tests/manageTypes.test.ts`
 
 - [ ] Write a failing test `tests/manageTypes.test.ts`:
   ```ts
@@ -92,14 +93,12 @@ CREATED
   ```ts
     themeId?: ThemeChoice // per-project document-theme override; absent = use global
   ```
-- [ ] In `src/shared/types.ts`, narrow the `updateProjectSettings` patch's `themeId` and **add `setDocsSubpath`** to `IpcApi`. Change the `updateProjectSettings` signature and add the new method just after `rebuildProject`:
+- [ ] In `src/shared/types.ts`, narrow the `updateProjectSettings` patch's `themeId` in `IpcApi`. (The `IpcApi.setDocsSubpath` method is **not** added here — it lands in Task 3 alongside its preload implementation so typecheck stays green. Adding the interface method here without the preload bridge would leave the preload `api` object failing to satisfy `IpcApi`.) Change the `updateProjectSettings` signature:
   ```ts
     updateProjectSettings(
       id: string,
       patch: { name?: string; docsSubpath?: string; themeId?: ThemeChoice }
     ): Promise<Project>
-    rebuildProject(id: string): Promise<void> // "Pull latest" (github) / "Reindex" (local)
-    setDocsSubpath(id: string, subpath: string): Promise<{ tree: NavNode[]; docCount: number }>
   ```
 - [ ] Update `src/renderer/src/lib/theme.ts` to consume the shared type (DRY). Replace the local `ThemeChoice` definition and `CHOICES` constant. Change the top of the file:
   ```ts
@@ -114,9 +113,17 @@ CREATED
   const CHOICES: readonly ThemeChoice[] = THEME_CHOICES
   ```
   (`isChoice` already does `(CHOICES as string[]).includes(v)`; the `readonly` widening is fine. Leave `ResolvedTheme`, `ThemeSettings`, `DEFAULT_THEME`, `loadThemeSettings`, `saveThemeSettings`, `resolveTheme` otherwise unchanged.)
+- [ ] Align `src/main/ipc.ts`'s `projects:updateSettings` handler with the narrowed `themeId` (otherwise its `patch` param is wider than the `IpcApi` contract). Import `ThemeChoice` from `@shared/types` and change the handler's `patch` param type from:
+  ```ts
+    { name?: string; docsSubpath?: string; themeId?: string }
+  ```
+  to:
+  ```ts
+    { name?: string; docsSubpath?: string; themeId?: ThemeChoice }
+  ```
 - [ ] Run: `bun test tests/manageTypes.test.ts` — expect PASS.
-- [ ] Run: `bun run typecheck` — expect PASS (no current code assigns a non-`ThemeChoice` to `themeId`; `Settings.tsx`'s `import { ThemeChoice } from '../lib/theme'` resolves via the re-export).
-- [ ] Commit: `feat(types): shared ThemeChoice, narrowed themeId, and IpcApi.setDocsSubpath`
+- [ ] Run: `bun run typecheck` — expect PASS across **both** the node + web projects. Narrowing `themeId` and aligning `ipc.ts`'s `projects:updateSettings` handler means Task 1 compiles cleanly with no dangling `IpcApi` method (the `setDocsSubpath` interface + preload bridge land together in Task 3). `Settings.tsx`'s `import { ThemeChoice } from '../lib/theme'` resolves via the re-export.
+- [ ] Commit: `feat(types): shared ThemeChoice, narrowed themeId, and ipc.ts alignment`
 
 ## Task 2 — Backend `setDocsSubpath` + registry identity-collision helper
 
@@ -200,6 +207,50 @@ CREATED
       expect(res.docCount).toBe(1)
       expect(calls).toBe(1) // unchanged subpath → served from cache, no second clone
     })
+
+    it('editing a non-active project does not change which project is active', async () => {
+      const spawnFn = repoSpawn({ 'README.md': '# Root', 'pkg/notes.md': '# Notes' })
+      const a = await addGithubProject('o/a', { ref: 'main' }, () => {}, { spawnFn })
+      const b = await addGithubProject('o/b', { ref: 'main' }, () => {}, { spawnFn })
+      await selectProject(a.id) // A is the active project
+      const res = await setDocsSubpath(b.id, 'pkg', () => {}, { spawnFn }) // re-scope NON-active B
+      expect(res.docCount).toBe(1)
+      expect(((await getProject(b.id)) as GithubProject).docsSubpath).toBe('pkg')
+      // `active` is untouched: A's docs still resolve (B never became active).
+      expect((await getDoc(a.id, 'README.md')).content).toContain('# Root')
+    })
+
+    it('rejects a concurrent build with a build-in-progress error and does not start a second build', async () => {
+      // A gated spawn keeps the first build in-flight until we release it.
+      let release: () => void = () => {}
+      const gate = new Promise<void>((r) => { release = r })
+      let builds = 0
+      const gatedSpawn = ((_cmd: string, args: string[]) => {
+        builds++
+        const child = new EventEmitter() as unknown as { stdout: EventEmitter; stderr: EventEmitter; kill: () => void }
+        ;(child as { stdout: EventEmitter }).stdout = new EventEmitter()
+        ;(child as { stderr: EventEmitter }).stderr = new EventEmitter()
+        ;(child as { kill: () => void }).kill = () => {}
+        void gate.then(async () => {
+          const dest = args[args.length - 1]
+          await mkdir(join(dest, 'pkg'), { recursive: true })
+          await writeFile(join(dest, 'pkg', 'notes.md'), '# Notes')
+          ;(child as unknown as EventEmitter).emit('close', 0)
+        })
+        return child as never
+      }) as never
+
+      const p = await addGithubProject('o/r', { ref: 'main' }, () => {}, {
+        spawnFn: repoSpawn({ 'README.md': '# Root' })
+      })
+      const first = setDocsSubpath(p.id, 'pkg', () => {}, { spawnFn: gatedSpawn })
+      while (builds === 0) await Promise.resolve() // wait until the first build is in-flight
+      await expect(setDocsSubpath(p.id, 'docs', () => {}, { spawnFn: gatedSpawn }))
+        .rejects.toMatchObject({ code: 'build-in-progress' })
+      release()
+      await first
+      expect(builds).toBe(1) // the rejected second call never started a build
+    })
   })
   ```
 - [ ] Run: `bun test tests/setDocsSubpath.test.ts` — expect FAIL (`setDocsSubpath` / `findGithubByIdentity` missing).
@@ -233,12 +284,17 @@ CREATED
     } from './registry'
     ```
   - Add the orchestration:
+    Also extend the existing `./cache` import to include `readCache` (alongside `purgeProjectCache`) so the result can be derived from cache without reloading `active`. Then add:
     ```ts
     // ── docsSubpath change (github) ─────────────────────────────────────────────
     // Re-scope what a github project indexes. Collision-checks the new identity,
     // patches docsSubpath, purges ALL cached refs (the subpath changes discovery),
-    // then rebuilds + reloads currentRef. A no-op (unchanged subpath) returns the
-    // current ref from cache without a rebuild. Throws on collision WITHOUT mutating.
+    // then rebuilds currentRef. It only reloads module-level `active` when THIS
+    // project is the active one (mirrors rebuildProject); for a non-active project
+    // it derives { tree, docCount } from the rebuilt cache WITHOUT clobbering
+    // `active`. A no-op (unchanged subpath) returns the current ref from cache
+    // without a rebuild. Throws (tagged) on collision WITHOUT mutating, and refuses
+    // to start a second concurrent build for the same id.
     export async function setDocsSubpath(
       id: string,
       subpath: string,
@@ -249,15 +305,38 @@ CREATED
       if (!project) throw new Error(`Project not found: ${id}`)
       if (project.type !== 'github') throw new Error(`Not a github project: ${id}`)
 
+      // Refuse a second concurrent build for the same project (tagged so the UI can
+      // distinguish it from a collision). NOTE: adding the same guard to the older
+      // switchRef / rebuildProject entrypoints is a deliberate follow-up, out of
+      // Plan 3 scope.
+      if (inFlight.has(id)) {
+        const e = new Error('Build already in progress') as Error & { code?: string }
+        e.code = 'build-in-progress'
+        throw e
+      }
+
+      // Resolve the result without touching `active` unless this is the active project.
+      const present = async (ref: string): Promise<{ tree: NavNode[]; docCount: number }> => {
+        if (active?.id === id) {
+          return loadGithubRef((await getProject(id)) as GithubProject, ref, onProgress, deps)
+        }
+        const cache = await readCache(id, ref)
+        return { tree: cache.manifest.tree, docCount: cache.manifest.docCount }
+      }
+
       const normalized = subpath.trim() || undefined
       if ((project.docsSubpath ?? undefined) === normalized) {
-        // Unchanged → serve the current ref from cache (no rebuild).
-        return loadGithubRef(project, project.currentRef, onProgress, deps)
+        // Unchanged → serve the current ref from cache (no rebuild), preserving `active`.
+        return present(project.currentRef)
       }
 
       const collision = await findGithubByIdentity(project.source, normalized, id)
       if (collision) {
-        throw new Error(`docsSubpath collision: another project already uses ${project.source} + ${normalized ?? '(root)'}`)
+        const e = new Error(
+          `docsSubpath collision: another project already uses ${project.source} + ${normalized ?? '(root)'}`
+        ) as Error & { code?: string }
+        e.code = 'collision'
+        throw e
       }
 
       await updateProject(id, { docsSubpath: normalized })
@@ -272,19 +351,25 @@ CREATED
       } finally {
         inFlight.delete(id)
       }
-      const reloaded = (await getProject(id)) as GithubProject
-      return loadGithubRef(reloaded, updated.currentRef, onProgress, deps)
+      // Reload only if active; otherwise derive from the freshly-rebuilt cache.
+      return present(updated.currentRef)
     }
     ```
   (Note: `purgeProjectCache` removes every ref's cache, but only `currentRef` is rebuilt here. Other `refs[]` records remain; `switchRef`'s existing `hasCache` check rebuilds them on demand the next time they're selected. Intended.)
+  (Note: the collision error is tagged `code: 'collision'` and the concurrency guard tags `code: 'build-in-progress'`; the renderer branches its copy on these markers — see Task 4. The same concurrency guard for `switchRef`/`rebuildProject` is deliberately deferred (out of Plan 3 scope).)
 - [ ] Run: `bun test tests/setDocsSubpath.test.ts` — expect PASS.
 - [ ] Run: `bun run typecheck` — expect PASS.
 - [ ] Commit: `feat(projects): setDocsSubpath re-scope with identity-collision check and rebuild`
 
 ## Task 3 — IPC + preload wiring for `setDocsSubpath`
 
-**Files:** `src/main/ipc.ts`, `src/preload/index.ts`
+**Files:** `src/shared/types.ts`, `src/main/ipc.ts`, `src/preload/index.ts`
 
+- [ ] Add the `setDocsSubpath` method to the `IpcApi` interface in `src/shared/types.ts`, just after `rebuildProject` (deferred from Task 1 so the interface addition and its preload bridge — below in this same task — land together and typecheck stays green):
+  ```ts
+    rebuildProject(id: string): Promise<void> // "Pull latest" (github) / "Reindex" (local)
+    setDocsSubpath(id: string, subpath: string): Promise<{ tree: NavNode[]; docCount: number }>
+  ```
 - [ ] Update `src/main/ipc.ts`. Add `setDocsSubpath` to the `projectService` import and register a streamed handler (uses the existing `progressTo(e)` helper, like `projects:switchRef`). Change the import block:
   ```ts
   import {
@@ -445,13 +530,30 @@ CREATED
       expect(container.querySelector('[data-action="edit-subpath"]')).toBeNull()
     })
 
-    it('shows the collision message and keeps the field open on reject', async () => {
-      await renderMP([gh], { onSetDocsSubpath: async () => { throw new Error('docsSubpath collision') } })
+    it('shows the collision copy and keeps the field open on a tagged collision reject', async () => {
+      await renderMP([gh], {
+        onSetDocsSubpath: async () => {
+          const e = new Error('docsSubpath collision') as Error & { code?: string }
+          e.code = 'collision'
+          throw e
+        }
+      })
       await act(async () => { (container.querySelector('[data-action="edit-subpath"]') as HTMLButtonElement).click() })
       const input = container.querySelector('[data-field="docsSubpath"]') as HTMLInputElement
       await act(async () => { setValue(input, 'dup') })
       await act(async () => { (container.querySelector('[data-action="commit-subpath"]') as HTMLButtonElement).click() })
       expect(container.textContent).toContain('Another project already uses that repo + subpath.')
+      expect(container.querySelector('[data-field="docsSubpath"]')).toBeTruthy() // still open
+    })
+
+    it('shows the generic rebuild copy on a non-collision reject (e.g. build/network failure)', async () => {
+      await renderMP([gh], { onSetDocsSubpath: async () => { throw new Error('clone failed') } })
+      await act(async () => { (container.querySelector('[data-action="edit-subpath"]') as HTMLButtonElement).click() })
+      const input = container.querySelector('[data-field="docsSubpath"]') as HTMLInputElement
+      await act(async () => { setValue(input, 'docs') })
+      await act(async () => { (container.querySelector('[data-action="commit-subpath"]') as HTMLButtonElement).click() })
+      expect(container.textContent).toContain("Couldn't rebuild at that subpath.")
+      expect(container.textContent).not.toContain('Another project already uses')
       expect(container.querySelector('[data-field="docsSubpath"]')).toBeTruthy() // still open
     })
 
@@ -574,8 +676,18 @@ CREATED
         const { docCount } = await onSetDocsSubpath(project.id, subpathDraft.trim())
         setEditingSubpath(false)
         if (docCount === 0) setZeroDoc(true)
-      } catch {
-        setSubpathError('Another project already uses that repo + subpath.')
+      } catch (err) {
+        // Branch on the backend's structured marker (code: 'collision'), falling back
+        // to a message check in case the code is stripped crossing the IPC boundary.
+        // A collision gets the identity copy; everything else (build-in-progress,
+        // network/clone/build failure) gets the generic rebuild-failure copy.
+        const e = err as { code?: string; message?: string } | null
+        const isCollision = e?.code === 'collision' || /collision/i.test(e?.message ?? '')
+        setSubpathError(
+          isCollision
+            ? 'Another project already uses that repo + subpath.'
+            : "Couldn't rebuild at that subpath."
+        )
       } finally {
         setLocalBusy(false)
       }
@@ -815,7 +927,7 @@ CREATED
 
 ## Task 5 — Wire view mode into App + TopBar (toggle, Done, per-project doc theme, delete-active)
 
-**Files:** `src/renderer/src/components/TopBar.tsx`, `src/renderer/src/App.tsx`, `tests/topBarManage.test.ts`
+**Files:** `src/renderer/src/components/TopBar.tsx`, `src/renderer/src/App.tsx`, `tests/topBarManage.test.ts`, `tests/appDeleteActive.test.ts`, `tsconfig.web.json`, `tsconfig.node.json`
 
 - [ ] Write a failing test `tests/topBarManage.test.ts` (the only DOM-testable unit of this task; the App glue is verified by typecheck + build + manual smoke):
   ```ts
@@ -908,9 +1020,17 @@ CREATED
     const manageSetDocsSubpath = useCallback(async (id: string, subpath: string) => {
       const { tree: next, docCount } = await window.api.setDocsSubpath(id, subpath)
       await refreshProjects()
-      if (id === activeId) setTree(next)
+      if (id === activeId) {
+        setTree(next)
+        // Preserve the open doc if it survives the re-scope; otherwise clear it so we
+        // don't keep rendering a path that no longer exists under the new subpath.
+        if (docPath && !treeHasPath(next, docPath)) {
+          setDocPath(null)
+          resetDocState()
+        }
+      }
       return { docCount }
-    }, [refreshProjects, activeId])
+    }, [refreshProjects, activeId, docPath, resetDocState])
 
     const manageDelete = useCallback(async (id: string) => {
       await window.api.removeProject(id)
@@ -926,6 +1046,20 @@ CREATED
     Add the `ThemeChoice` type import to the existing `@shared/types` import line:
     ```tsx
     import type { Project, NavNode, SearchResult, ThemeChoice } from '@shared/types'
+    ```
+  - Add a module-level `treeHasPath` helper next to the existing `findDocTitle` (used by `manageSetDocsSubpath`'s preserve-if-present check — keep the open doc when it still exists in the re-scoped tree, otherwise clear it):
+    ```tsx
+    // True if a doc node addressed by `path` exists anywhere in the nav tree.
+    function treeHasPath(nodes: NavNode[], path: string): boolean {
+      for (const node of nodes) {
+        if (node.type === 'doc') {
+          if (node.path === path) return true
+        } else if (treeHasPath(node.children, path)) {
+          return true
+        }
+      }
+      return false
+    }
     ```
   - Pass the toggle props to `<TopBar>` (add to the existing usage):
     ```tsx
@@ -981,7 +1115,72 @@ CREATED
         {activeProject && view === 'docs' && (
           <StatusBar
     ```
-- [ ] Run: `bun run typecheck` — expect PASS. Run `bunx electron-vite build` — expect a clean build. Run `bun test tests/topBarManage.test.ts tests/manageProjects.test.ts` — expect PASS.
+- [ ] Register the new App-level test file with the TypeScript projects (so it compiles under web and is excluded from node):
+  - In `tsconfig.web.json`, append `"tests/appDeleteActive.test.ts"` to `"include"`.
+  - In `tsconfig.node.json`, append `"tests/appDeleteActive.test.ts"` to `"exclude"`.
+- [ ] Write ONE focused App-level jsdom test for delete-active, `tests/appDeleteActive.test.ts` (this is the single full-App integration test in this plan — do **not** scaffold a broad App harness; the other App paths stay on the manual-smoke checklist):
+  ```ts
+  import { describe, it, expect, beforeEach } from 'bun:test'
+  import { act, createElement } from 'react'
+  import { createRoot, type Root } from 'react-dom/client'
+  import App from '../src/renderer/src/App'
+  import type { Project } from '../src/shared/types'
+
+  let container: HTMLDivElement
+  let root: Root
+
+  const A: Project = { id: 'a', name: 'Alpha', type: 'local', source: '/tmp/a', addedAt: 'now', status: 'ok', docCount: 1 }
+  const B: Project = { id: 'b', name: 'Beta', type: 'local', source: '/tmp/b', addedAt: 'now', status: 'ok', docCount: 1 }
+
+  beforeEach(() => {
+    // App reads matchMedia (systemDark); stub it if the jsdom setup hasn't.
+    if (!window.matchMedia) {
+      ;(window as unknown as { matchMedia: unknown }).matchMedia = () => ({
+        matches: false, addEventListener: () => {}, removeEventListener: () => {}
+      })
+    }
+    let list: Project[] = [A, B]
+    ;(window as unknown as { api: Partial<Window['api']> }).api = {
+      listProjects: async () => list,
+      selectProject: async () => ({
+        tree: [{ type: 'doc', name: 'r.md', title: 'R', path: 'r.md', kind: 'md' }],
+        docCount: 1
+      }),
+      onBuildProgress: () => () => {},
+      removeProject: async (id: string) => { list = list.filter((p) => p.id !== id) }
+    }
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  describe('App delete-active', () => {
+    it('clears the active doc, tree, and sidebar when the active project is deleted', async () => {
+      await act(async () => { root.render(createElement(App)) })
+      await act(async () => {}) // flush initial refreshProjects
+
+      const toggle = (): HTMLButtonElement =>
+        container.querySelector('[data-action="toggle-manage"]') as HTMLButtonElement
+
+      // Open Manage, select Alpha (makes it active and returns to docs).
+      await act(async () => { toggle().click() })
+      await act(async () => { (container.querySelector('[data-row="a"] [data-action="select"]') as HTMLButtonElement).click() })
+      expect(container.querySelector('.sidebar')).toBeTruthy() // active project → sidebar shown
+
+      // Re-open Manage and delete Alpha (inline two-step confirm).
+      await act(async () => { toggle().click() })
+      await act(async () => { (container.querySelector('[data-row="a"] [data-action="delete"]') as HTMLButtonElement).click() })
+      await act(async () => { (container.querySelector('[data-row="a"] [data-action="confirm-delete"]') as HTMLButtonElement).click() })
+
+      // Back in docs: no active project → sidebar gone, neutral prompt shown (docPath null).
+      await act(async () => { toggle().click() })
+      expect(container.querySelector('.sidebar')).toBeNull()
+      expect(container.textContent).toContain('Add or select a project to begin.')
+    })
+  })
+  ```
+- [ ] Run: `bun test tests/appDeleteActive.test.ts` — expect PASS.
+- [ ] Run: `bun run typecheck` — expect PASS. Run `bunx electron-vite build` — expect a clean build. Run `bun test tests/topBarManage.test.ts tests/manageProjects.test.ts tests/appDeleteActive.test.ts` — expect PASS.
 - [ ] Manual smoke (document in commit body; not automated): `bun run dev` → click the Manage toggle, rename a project, change its Theme select (document pane reflects it on the active project), edit a github docsSubpath (watch the row go busy + rebuild), delete a project (inline two-step), filter + sort, press Done. Delete the active project → sidebar/doc clear and you stay in Manage.
 - [ ] Commit: `feat(ui): manage-projects view mode, per-project doc theme, delete-active handling`
 
@@ -1091,29 +1290,31 @@ CREATED
 ## Self-Review Notes
 
 **Spec coverage (design spec → tasks):**
-1. Shared `ThemeChoice` + narrowed `themeId` + `IpcApi.setDocsSubpath` → **Task 1**.
-2. Backend `setDocsSubpath` (collision throws without mutation; success purges cache + rebuilds currentRef + records; non-github rejected; no-op on unchanged subpath) + registry identity-collision helper → **Task 2**.
-3. IPC `projects:setDocsSubpath` (streamed) + preload bridge → **Task 3**.
-4. `ManageProjects` component — rows (name / mono-mid-truncated source / type chip / count / always-visible controls), inline rename (blank→prior name), compact per-row theme select (Global/Dark/Light/System), github docsSubpath inline editor with busy/collision/0-doc states, inline two-step delete, building-disabled controls, sort (Name/Type/Recently built) + filter (name+source) with first-run AND filtered-empty states → **Task 4**.
-5. App + TopBar wiring — `view` toggle, Done, per-project document-theme resolution, delete-active handling, refresh-after-mutation → **Task 5**.
+1. Shared `ThemeChoice` + narrowed `themeId` + `ipc.ts` `updateSettings` handler alignment → **Task 1** (the `IpcApi.setDocsSubpath` interface method moved to **Task 3** so it lands with its preload bridge and typecheck stays green).
+2. Backend `setDocsSubpath` (collision throws — tagged `code: 'collision'` — without mutation; concurrent-build guard tagged `code: 'build-in-progress'`; success purges cache + rebuilds currentRef + records; non-github rejected; no-op on unchanged subpath; **only reloads `active` when editing the active project**, else derives result from cache) + registry identity-collision helper → **Task 2**.
+3. `IpcApi.setDocsSubpath` interface + IPC `projects:setDocsSubpath` (streamed) + preload bridge → **Task 3**.
+4. `ManageProjects` component — rows (name / mono-mid-truncated source / type chip / count / always-visible controls), inline rename (blank→prior name), compact per-row theme select (Global/Dark/Light/System), github docsSubpath inline editor with busy/collision/generic-rebuild-error/0-doc states (error copy branches on the backend's structured `code`), inline two-step delete, building-disabled controls, sort (Name/Type/Recently built) + filter (name+source) with first-run AND filtered-empty states → **Task 4**.
+5. App + TopBar wiring — `view` toggle, Done, per-project document-theme resolution, delete-active handling (one App-level jsdom test), preserve-if-present open doc on re-scope, refresh-after-mutation → **Task 5**.
 6. `.manage-*` styles + motion (row collapse/fade gated by `prefers-reduced-motion`) → **Task 6**.
 7. Adversarial sweep (clear-to-root; 0-doc-note vs collision) → **Task 7**.
 
-**Verbatim copy (from the spec copy table) used in the plan:** toggle tooltip/aria "Manage projects"; header "Manage Projects"; exit "Done"; empty state "No projects yet — add one to get started." + "Add project"; filter placeholder "Filter projects…"; sort options "Sort: Name" / "Sort: Type" / "Sort: Recently built"; filtered-empty "No projects match \"<query>\"." + "Clear filter"; docsSubpath placeholder "docs subpath (e.g. docs)"; collision "Another project already uses that repo + subpath."; 0-doc note "No docs found at that subpath."; delete confirm "Delete <name>?" + "Cancel" / "Delete"; count "{n} docs" / "{n} branches"; type chips "local" / "github" (rendered from `project.type`).
+**Verbatim copy (from the spec copy table) used in the plan:** toggle tooltip/aria "Manage projects"; header "Manage Projects"; exit "Done"; empty state "No projects yet — add one to get started." + "Add project"; filter placeholder "Filter projects…"; sort options "Sort: Name" / "Sort: Type" / "Sort: Recently built"; filtered-empty "No projects match \"<query>\"." + "Clear filter"; docsSubpath placeholder "docs subpath (e.g. docs)"; collision "Another project already uses that repo + subpath."; generic rebuild failure "Couldn't rebuild at that subpath."; 0-doc note "No docs found at that subpath."; delete confirm "Delete <name>?" + "Cancel" / "Delete"; count "{n} docs" / "{n} branches"; type chips "local" / "github" (rendered from `project.type`).
 
 **Type consistency:**
 - `ThemeChoice` is defined once in `src/shared/types.ts`; `lib/theme.ts` re-exports it (existing `Settings.tsx` import keeps working). `ProjectBase.themeId` and the `updateProjectSettings` patch both use it.
-- `setDocsSubpath` returns `{ tree, docCount }` consistently across `IpcApi` (Task 1), projectService (Task 2), the preload bridge (Task 3), and App's `manageSetDocsSubpath` (which narrows to `{ docCount }` for the component prop — Task 5). The `ManageProjects` `onSetDocsSubpath` prop type is `(id, subpath) => Promise<{ docCount: number }>` (Task 4) and the App handler satisfies it.
+- `setDocsSubpath` returns `{ tree, docCount }` consistently across `IpcApi` (Task 3), projectService (Task 2), the preload bridge (Task 3), and App's `manageSetDocsSubpath` (which narrows to `{ docCount }` for the component prop — Task 5). The `ManageProjects` `onSetDocsSubpath` prop type is `(id, subpath) => Promise<{ docCount: number }>` (Task 4) and the App handler satisfies it.
 - The component's data-attribute contract (`data-row`, `data-chip`, `data-count`, `data-source`, `data-role="filter|sort|theme-select"`, `data-field="rename|docsSubpath"`, `data-action="select|rename|edit-subpath|commit-subpath|delete|confirm-delete|cancel-delete|add-project|clear-filter|done|toggle-manage"`) is identical between the tests (Tasks 4–5, 7) and the implementation.
 
 **Reconciliation decisions / assumptions (flag for review):**
 - **`ThemeChoice` shared-type question:** resolved by promoting `ThemeChoice` + a runtime `THEME_CHOICES` into `src/shared/types.ts` and re-exporting from `lib/theme.ts` (single source of truth, DRYs the existing `CHOICES` list). The alternative — leaving `ThemeChoice` in the renderer and typing `themeId` as a bare union in `shared` — would duplicate the literal set across the boundary; rejected.
 - **Clearing the per-project theme override:** the renderer sends `updateProjectSettings(id, { themeId: undefined })`. `registry.updateProject` spreads the patch then `JSON.stringify` (which omits `undefined` keys), so the persisted record drops `themeId`; the in-memory result has `themeId: undefined` (falsy) so App resolves to the global document theme. This is the "Global clears the override" mechanism — no new registry code needed.
-- **Collision vs. 0-doc surfaces:** a collision is a backend **throw** (message contains `collision`) → the renderer maps any `onSetDocsSubpath` rejection to the inline collision copy and keeps the field open. A 0-doc result is a **successful** rebuild returning `docCount === 0` → a distinct inline note. Rebuild *failures* (network, etc.) also reject and currently render the collision copy; if a later task needs to distinguish them, pass the error through and branch on its message. Flagged.
+- **Collision vs. generic-failure vs. 0-doc surfaces:** the backend throws a **tagged** error — `code: 'collision'` for an identity clash, `code: 'build-in-progress'` for the concurrency guard, and an untagged error for network/clone/build failures. The renderer's `commitSubpath` catch branches on `code === 'collision'` (with a `/collision/i` message fallback in case the code is stripped crossing IPC) → inline collision copy "Another project already uses that repo + subpath."; everything else (build-in-progress, build failure) → generic copy "Couldn't rebuild at that subpath."; the field stays open in both cases. A 0-doc result is a **successful** rebuild returning `docCount === 0` → a distinct inline note "No docs found at that subpath." Task 4 tests cover both a collision and a non-collision reject.
 - **Purge-all-refs, rebuild-current-only:** `setDocsSubpath` purges every cached ref (discovery scope changed) but only rebuilds `currentRef`. Other `refs[]` records persist and are rebuilt on demand by the existing `switchRef`/`hasCache` path. Matches the spec ("purge the cache (all refs) and rebuild currentRef").
 - **Rename vs. select on the name:** the spec's "click rename (or the name)" conflicts with "selecting a project from the list returns to docs". Resolved: the **name** selects (returns to docs); a dedicated **pencil** button renames.
 - **`removeProject` already purges cache:** the existing `projects:remove` IPC handler calls `purgeProjectCache(id)` before `removeProject(id)`, so delete needs no new backend — the Manage view reuses it (Task 5 `manageDelete`).
 - **Motion:** row removal currently re-renders from the refreshed `projects` array (instant). A `.is-removing` collapse/fade class + reduced-motion guard is shipped in CSS (Task 6) and reserved for an explicit exit animation; not wired to a timer in this plan to keep delete deterministic and test-stable.
-- **App-glue testing:** like Plan 2's App-wiring task, the App integration is verified via `bun run typecheck` + `bunx electron-vite build` + a documented manual smoke; the independently DOM-testable unit (the TopBar toggle) has a real red/green test (`tests/topBarManage.test.ts`).
+- **App-glue testing:** the TopBar toggle has a real red/green unit test (`tests/topBarManage.test.ts`), and delete-active — the one App path with destructive state cleanup — gets a single focused App-level jsdom integration test (`tests/appDeleteActive.test.ts`: mock `window.api`, select then delete the active project, assert the sidebar unmounts and the neutral prompt returns). The remaining App paths stay on the documented manual smoke; no broad full-App harness is scaffolded.
+- **Active-project preservation on re-scope:** `setDocsSubpath` mirrors `rebuildProject` — it only reloads module-level `active` when the edited project IS the active one; for any other project it derives `{ tree, docCount }` from the rebuilt cache (`readCache`) so editing a background project never hijacks `active`. App-side, when the edited project is active, the re-scoped tree replaces the old one and the open `docPath` is kept if it still exists in the new tree (via `treeHasPath`), else cleared with `resetDocState`.
+- **Concurrency guard scope:** `setDocsSubpath` refuses a second concurrent build for the same id (tagged `build-in-progress`). Applying the same guard to the older `switchRef`/`rebuildProject` entrypoints is a deliberate follow-up, out of Plan 3 scope.
 
 **Scope honored:** single-row actions only (no multi-select/bulk); no ref-management beyond the existing branch switcher; chrome theming and the full theming editor remain Plan 5; file-watch / session memory / ⌘K remain Plan 4.
