@@ -503,6 +503,8 @@ git commit -m "feat(types): shared domain + IPC types"
 
 **Behavior (from spec):** walk the tree for `.md` and `.html`; ignore `node_modules`, `.git`, `dist`, `build`, `out`, `vendor`, `coverage`; skip symlinks; cap per-file size at 2 MB and total docs at 5000 (log skips); prefer the source `.md` and skip a same-named generated `.html` (1A); orphan `.html` (no `.md` sibling) is kept.
 
+> **Added later (see ADR-0004):** docs-folder auto-scoping. When the project root contains a top-level `docs/` or `documentation/` folder (case-insensitive), discovery is scoped to root-level doc files plus those folders' subtrees; all other root subfolders are excluded (one `skipped` entry each, reason `"outside docs/ scope"`). When no such folder exists, the whole-tree walk above is unchanged. An explicit GitHub `docsSubpath` overrides this auto-detection. Covered by the `scoped-docs` fixture + tests in `tests/discover.test.ts`.
+
 - [ ] **Step 1: Create fixtures**
 
 Create these files with any short markdown/text content:

@@ -20,6 +20,13 @@ Any file on disk in a Project's source. Most are not surfaced; the `discover` st
 filters Source files down to the subset that become Documents.
 _Avoid_: using "file" to mean Document.
 
+**Docs scope**:
+The subset of a Project's tree that `discover` considers when the root holds a
+top-level `docs/` or `documentation/` folder: root-level Documents plus that
+folder's subtree, with all other root subfolders excluded (ADR-0004). Absent such a
+folder, the whole tree is in scope. An explicit GitHub `docsSubpath` overrides it.
+_Avoid_: conflating with `docsSubpath` (the manual GitHub override).
+
 **Rebuild**:
 The operation that re-runs a Project's pipeline (re-acquire source → discover →
 parse → index → cache). One internal operation, two surface labels by Project type:
@@ -59,6 +66,9 @@ _Avoid_: branch (a Ref may be a tag or commit too).
 - A **Project** surfaces zero or more **Documents**.
 - A **Document** is derived from exactly one **Source file**; not every Source file
   becomes a Document.
+- A **Project** whose root has a `docs/` or `documentation/` folder surfaces only
+  root-level **Documents** plus that folder's subtree (its **Docs scope**); other
+  root subfolders are hidden.
 - A **Document** is split into one or more **Sections** at heading boundaries.
 - A GitHub **Project** has one or more cached **Refs**, one of which is current; a
   Project's identity excludes its Ref (same repo on two branches = one Project).

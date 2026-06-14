@@ -97,7 +97,10 @@ code.
     shorthand (normalized to https). SSH-URL *input* parsing is deferred; private
     https repos still authenticate via the user's git credential helper.
   - `docsSubpath?` — optional path within the repo to scope discovery (e.g.
-    `docs/`); when absent, discovery walks the whole clone. The whole repo is cloned
+    `docs/`); when set, it **overrides** the docs-folder auto-scoping (ADR-0004) and
+    discovery is confined to that subpath. When absent, discovery applies the
+    auto-scoping rule (root-level docs + a top-level `docs/`/`documentation/` folder
+    if one exists), otherwise walks the whole clone. The whole repo is cloned
     regardless (shallow); the subpath only narrows discovery.
 - **Branch switcher (github only):** a GitHub Project exposes a ref switcher. Each
   ref is cached independently; switching to an already-cached ref is instant,
@@ -125,7 +128,13 @@ Emits progress events to the renderer over IPC so the UI can show stages.
 1. **Resolve source** — local dir used in place; GitHub shallow-cloned to a temp
    dir (`os.tmpdir()`).
 2. **Discover** — walk the tree for `.md` and `.html`, ignoring `node_modules`,
-   `.git`, `dist`, and similar build/vendor dirs.
+   `.git`, `dist`, and similar build/vendor dirs. **Docs-folder auto-scoping
+   (ADR-0004):** if the root holds a top-level `docs/` or `documentation/` folder
+   (case-insensitive; both included if present), discovery is scoped to root-level
+   doc files **plus** those folders' subtrees, and all other root subfolders are
+   excluded (not walked; one skip entry each). When no such folder exists, the walk
+   covers the whole tree as above. An explicit GitHub `docsSubpath` (below)
+   overrides this auto-detection.
 3. **Parse** — for each doc, extract the Title (first H1) and headings (H2/H3) for
    the TOC; record the relative path; split the body into **Sections** at heading
    boundaries (H1–H3).
