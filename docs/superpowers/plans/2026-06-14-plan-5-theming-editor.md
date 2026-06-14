@@ -32,6 +32,8 @@ The original spec referenced pre-Plan-3/4 line numbers. Plan 3 and Plan 4 are **
 - **Per-project `themeId`** (registry): legacy values are `'dark' | 'light' | 'system'`. None is a `BUILTIN_THEMES` id, so **all three collapse to "use global"** (drop the field) — this falls out of the unknown-id validation in the IPC handler; no bespoke mapping table. (Considered + rejected: `'dark' → graphite`, `'light' → sepia`.)
 - **Global `localStorage['curator.theme']`** (renderer): legacy `{ chrome, document }` (or malformed/absent) → `{ themeId: DEFAULT_THEME_ID }`, which reproduces the default mixed look. Custom per-region combos are not preserved (per-region advanced override is deferred).
 
+> **Per-project cleanup is write-time only (D5-14 / P5-DP2).** A stale `'dark' | 'light' | 'system'` is dropped only when `updateProjectSettings` is next called for that project (the unknown-id validation in the IPC handler). There is NO read-path normalization: a lingering legacy value is **inert** — `themeById()` resolves any unknown id to Default at runtime, so an un-rewritten project simply uses global Default until its settings are next saved. The eventual closer (deferred, out of this plan) is a one-shot **versioned migration** that rewrites all stored projects in a single pass — warranted only IF the legacy `ThemeChoice` enum is ever removed from the type (today it stays exported for back-compat and `tests/manageTypes.test.ts`).
+
 ---
 
 ## File Structure
@@ -70,6 +72,7 @@ CREATED
 - Modify: `src/renderer/src/components/ManageProjects.tsx`
 - Modify: `src/renderer/src/components/EditProjectModal.tsx`
 - Modify: `src/renderer/src/App.tsx`
+- Modify: `tests/editProjectModal.test.ts` (annotation widening only — keeps `typecheck:web` green under the new signature; logic corrections land in T4)
 
 > No isolated unit test — this is a type change verified by `bun run typecheck` + the existing suite (`tests/manageTypes.test.ts`, `tests/editProjectModal.test.ts`). The first explicit failing/ passing unit test arrives in T2.
 
@@ -103,7 +106,9 @@ import type { BuildProgress } from '@shared/types'
   (drop the now-unused `ThemeChoice` from that import). Add a module-level constant near the top of the file, after the imports:
 
 ```ts
-// Built-in theme ids (mirror of lib/theme.ts BUILTIN_THEMES keys). A per-project
+// Built-in theme ids — keep in sync with BUILTIN_THEMES in
+// src/renderer/src/lib/theme.ts (cross-ref: this Set IS the main-process mirror of
+// Object.keys(BUILTIN_THEMES); main must not import the renderer module). A per-project
 // themeId that is not one of these is dropped to "use global" — this is also the
 // legacy-value migration: 'dark' | 'light' | 'system' all collapse to undefined.
 const BUILTIN_THEME_IDS = new Set(['default', 'sepia', 'high-contrast', 'graphite'])
@@ -115,6 +120,9 @@ const BUILTIN_THEME_IDS = new Set(['default', 'sepia', 'high-contrast', 'graphit
   ipcMain.handle(
     'projects:updateSettings',
     (_e, id: string, patch: { name?: string; docsSubpath?: string; themeId?: string }) => {
+      // Write-time-only cleanup (D5-14): a lingering legacy themeId is INERT at runtime
+      // (themeById() resolves any unknown id to Default), so dropping it here is cleanup,
+      // not correctness — there is no read-path normalization.
       const themeId = patch.themeId && BUILTIN_THEME_IDS.has(patch.themeId) ? patch.themeId : undefined
       return updateProject(id, { ...patch, themeId })
     }
@@ -169,15 +177,37 @@ import type { Project, NavNode, SearchResult, ThemeChoice } from '@shared/types'
 import { THEME_CHOICES } from '@shared/types'
 ```
 
-- [ ] **Step 5: Typecheck and run the existing theme-touching suite (full gate re-run).**
+- [ ] **Step 5: Widen two captured-theme annotations in `tests/editProjectModal.test.ts`** (moved here from T4 per MF1). These edits are independent of the T4 component rewrite, but T1's `onSetTheme` widening to `string | undefined` breaks `typecheck:web` without them — the `string | undefined` `themeId` is no longer assignable to the old `ThemeChoice`-typed capture arrays.
 
-  Run: `bun run typecheck` — Expected: PASS (node + web).
-  Run: `bun test tests/manageTypes.test.ts tests/editProjectModal.test.ts tests/manageProjects.test.ts` — Expected: PASS (string widening is back-compatible).
+  In the `'does not emit a rename or theme update when nothing changed'` test (~line 117), change `const themes: Array<ThemeChoice | undefined> = []` to:
 
-- [ ] **Step 6: Commit.**
+```ts
+  const themes: Array<string | undefined> = []
+```
+
+  In `'maps the Global theme option to an undefined project theme'` (~line 135), change `const themes: Array<[string, ThemeChoice | undefined]> = []` to:
+
+```ts
+  const themes: Array<[string, string | undefined]> = []
+```
+
+  Then drop the now-unused `ThemeChoice` from the import on line 7 (else `noUnusedLocals` trips `typecheck:web`):
+
+```ts
+import type { Project } from '../src/shared/types'
+```
+
+  (Test *logic* — the `'dark'` seeds, the "nothing changed" expectation, and the new migration case — is corrected later in T4 Step 6 per MF2; T1 touches annotations + the import only.)
+
+- [ ] **Step 6: Typecheck and run the existing theme-touching suite (full gate re-run).**
+
+  Run: `bun run typecheck` — Expected: PASS (node + web). The Step-5 annotation widening in `tests/editProjectModal.test.ts` is what keeps `typecheck:web` green under the new `onSetTheme` signature.
+  Run: `bun test tests/manageTypes.test.ts tests/editProjectModal.test.ts tests/manageProjects.test.ts` — Expected: PASS (string widening is back-compatible; the existing `'dark'` seeds still behave under the legacy-aware T1 App guard).
+
+- [ ] **Step 7: Commit.**
 
 ```bash
-git add src/shared/types.ts src/main/ipc.ts src/renderer/src/components/ManageProjects.tsx src/renderer/src/components/EditProjectModal.tsx src/renderer/src/App.tsx
+git add src/shared/types.ts src/main/ipc.ts src/renderer/src/components/ManageProjects.tsx src/renderer/src/components/EditProjectModal.tsx src/renderer/src/App.tsx tests/editProjectModal.test.ts
 git commit -m "refactor(theme): widen per-project themeId to a registry id string + validate in ipc"
 ```
 
@@ -296,6 +326,13 @@ describe('swatchColors', () => {
     expect(swatchColors(sepia, 'light').bg).toBe(sepia.variants.light!['--bg'])
     // Default overrides nothing → swatch reads the base palette value.
     expect(swatchColors(BUILTIN_THEMES.default, 'dark').bg).toBe('#0a0f1e')
+  })
+
+  it("Default's light-half swatch equals the light base palette (BASE_SWATCH pin)", () => {
+    // Default has no overrides, so the document (light) half must read the raw light base.
+    expect(swatchColors(BUILTIN_THEMES.default, 'light')).toEqual({
+      bg: '#ffffff', surface: '#eff3fb', surfaceAlt: '#e4ebf6', accent: '#1a7fe8', fg: '#14233a'
+    })
   })
 })
 
@@ -485,9 +522,13 @@ export function themeById(id: string | undefined): Theme {
 }
 
 // ── Token-faithful swatch colors (gallery card + per-project chip) ──────────────
-// The base palette values for the few tokens a swatch band shows, mirrored from
-// styles.css :root[data-theme]. A theme override (if any) layers on top, so the
-// swatch reads the theme's REAL resolved color (D5-9 token-faithful preview).
+// The base palette values for the few tokens a swatch band shows.
+// PINNED to styles.css: these literals MUST mirror the `[data-theme="dark"]` /
+// `[data-theme="light"]` token values in src/renderer/src/styles.css — they are the
+// fallback the swatch reads when a theme overrides nothing. A future palette retune
+// in styles.css must update this map in lockstep, or the swatches will lie.
+// A theme override (if any) layers on top, so the swatch reads the theme's REAL
+// resolved color (D5-9 token-faithful preview).
 const BASE_SWATCH: Record<Mode, { bg: string; surface: string; surfaceAlt: string; accent: string; fg: string }> = {
   dark: { bg: '#0a0f1e', surface: '#111d28', surfaceAlt: '#1c2b3a', accent: '#4a9eff', fg: '#f0f4ff' },
   light: { bg: '#ffffff', surface: '#eff3fb', surfaceAlt: '#e4ebf6', accent: '#1a7fe8', fg: '#14233a' }
@@ -695,7 +736,8 @@ describe('Settings theme gallery', () => {
     const def = container.querySelector('[data-theme-card][data-theme-id="default"]') as HTMLElement
     expect(def.querySelector('[data-swatch-split]')).toBeTruthy()
     expect(def.textContent).toContain('Default — mixed')
-    expect(def.querySelector('[title]')?.getAttribute('title')).toContain('dark chrome')
+    // The title={DEFAULT_TOOLTIP} sits on the card button itself (def), not a descendant.
+    expect(def.getAttribute('title')).toContain('dark chrome')
   })
 
   it('commits on click and calls onChange with the clicked themeId', async () => {
@@ -712,6 +754,30 @@ describe('Settings theme gallery', () => {
     const hc = container.querySelector('[data-theme-card][data-theme-id="high-contrast"]') as HTMLElement
     await act(async () => { hc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) })
     expect(next).toEqual({ themeId: 'high-contrast' })
+  })
+
+  it('commits on Space on a focused card', async () => {
+    let next: ThemeSettings | null = null
+    await render(props({ onChange: (n) => { next = n } }))
+    const graphite = container.querySelector('[data-theme-card][data-theme-id="graphite"]') as HTMLElement
+    await act(async () => { graphite.dispatchEvent(new window.KeyboardEvent('keydown', { key: ' ', bubbles: true })) })
+    expect(next).toEqual({ themeId: 'graphite' })
+  })
+
+  it('arrowing moves focus + the roving marker but does NOT commit (roving focus only, D5-13)', async () => {
+    let calls = 0
+    await render(props({ settings: { themeId: 'default' }, onChange: () => { calls++ } }))
+    const first = cards()[0]
+    await act(async () => { first.focus() })
+    await act(async () => { first.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })) })
+    // No commit / no save on arrow — selection marker is roving-only.
+    expect(calls).toBe(0)
+    // aria-checked stays pinned to the COMMITTED theme, NOT the focused card.
+    const checked = container.querySelector('[data-theme-card][aria-checked="true"]') as HTMLElement
+    expect(checked.getAttribute('data-theme-id')).toBe('default')
+    // Roving focus + tabIndex moved to the next card (the focused-but-uncommitted one).
+    expect(cards()[1].getAttribute('tabindex')).toBe('0')
+    expect(cards()[0].getAttribute('tabindex')).toBe('-1')
   })
 
   it('does NOT call onChange on hover/focus (swatch-only preview, D5-9)', async () => {
@@ -733,7 +799,7 @@ describe('Settings theme gallery', () => {
 - [ ] **Step 4: Rewrite `src/renderer/src/components/Settings.tsx`** as the gallery.
 
 ```tsx
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { THEME_LIST, swatchColors, type ThemeSettings, type Theme } from '../lib/theme'
 
 interface Props {
@@ -790,9 +856,21 @@ export default function Settings({ settings, onChange, onClose }: Props): React.
   }, [onClose])
 
   const selectedIndex = Math.max(0, THEME_LIST.findIndex((t) => t.id === settings.themeId))
+  // Roving focus index — moves on Arrow/Home/End WITHOUT committing. aria-checked stays
+  // pinned to the committed (settings.themeId) card; the roving tabIndex=0 + .is-focused
+  // marker move independently to the focused-but-uncommitted card (D5-13).
+  const [focusIndex, setFocusIndex] = useState(selectedIndex)
   const commit = (id: string): void => onChange({ themeId: id })
 
-  // Arrow-key roving across the 2-col grid (wrapping); Home/End jump; Enter/Space commit.
+  const moveFocus = (next: number): void => {
+    setFocusIndex(next)
+    const cards = groupRef.current?.querySelectorAll<HTMLElement>('[data-theme-card]')
+    cards?.[next]?.focus()
+  }
+
+  // Roving radiogroup (D5-13): Arrow across the 2-col grid (wrapping) + Home/End move
+  // FOCUS and the roving selection marker ONLY — they do NOT commit and do NOT save
+  // (swatch-only preview, D5-9). Commit happens solely on click / Enter / Space.
   const onKeyDown = (e: React.KeyboardEvent, index: number): void => {
     const n = THEME_LIST.length
     let next = -1
@@ -803,9 +881,7 @@ export default function Settings({ settings, onChange, onClose }: Props): React.
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); commit(THEME_LIST[index].id); return }
     if (next >= 0) {
       e.preventDefault()
-      const cards = groupRef.current?.querySelectorAll<HTMLElement>('[data-theme-card]')
-      cards?.[next]?.focus()
-      commit(THEME_LIST[next].id) // arrow selection commits (roving radiogroup semantics)
+      moveFocus(next) // focus + roving marker only — NO commit on arrow
     }
   }
 
@@ -830,12 +906,14 @@ export default function Settings({ settings, onChange, onClose }: Props): React.
                   key={theme.id}
                   type="button"
                   role="radio"
+                  // aria-checked is pinned to the COMMITTED theme (settings.themeId), not
+                  // the roving-focused card — arrowing never moves the checked state.
                   aria-checked={selected}
                   aria-label={`${theme.name} (${selected ? 'selected' : 'not selected'})`}
                   data-theme-card
                   data-theme-id={theme.id}
-                  className={`theme-card${selected ? ' is-selected' : ''}`}
-                  tabIndex={index === selectedIndex ? 0 : -1}
+                  className={`theme-card${selected ? ' is-selected' : ''}${index === focusIndex ? ' is-focused' : ''}`}
+                  tabIndex={index === focusIndex ? 0 : -1}
                   title={theme.id === 'default' ? DEFAULT_TOOLTIP : undefined}
                   onClick={() => commit(theme.id)}
                   onKeyDown={(e) => onKeyDown(e, index)}
@@ -905,7 +983,10 @@ import type { Project, NavNode, SearchResult } from '@shared/types'
   // Imperative apply: overrides are inline style props, so we write data-theme +
   // the --token overrides directly onto the chrome (.app-shell) and document (.content)
   // roots. Per-project theme drives BOTH regions (D5-5). Re-runs on theme/system change.
-  useEffect(() => {
+  // useLayoutEffect (NOT useEffect): the attributes/overrides must be written BEFORE first
+  // paint, or the document pane flashes the dark :root base for one frame under the
+  // light-document Default (launch-flash fix, MF4).
+  useLayoutEffect(() => {
     const chrome = appShellRef.current
     const doc = mainRef.current
     if (chrome) {
@@ -918,6 +999,8 @@ import type { Project, NavNode, SearchResult } from '@shared/types'
     }
   }, [resolvedTheme, systemDark])
 ```
+
+  **Confirm the React import pulls `useLayoutEffect`.** App's existing `import { … } from 'react'` line lists its hooks (`useState`, `useEffect`, `useRef`, `useCallback`, …); add `useLayoutEffect` to that list if not already present, so the theme-apply effect above resolves.
 
   (`resolvedTheme` is referentially stable for a given id because it comes from the `BUILTIN_THEMES` registry, so the effect re-runs only when `effectiveThemeId` or `systemDark` actually change.)
 
@@ -1178,15 +1261,29 @@ export interface EditProjectModalProps {
               />
 ```
 
-- [ ] **Step 6: Update the existing `tests/editProjectModal.test.ts`** for the generalized option set. Two existing cases assume the legacy `{Global / Dark / Light / System}` select.
+- [ ] **Step 6: Correct the existing `tests/editProjectModal.test.ts` for the generalized option set + the migration-on-save behavior (MF2).** The annotation widening (`ThemeChoice` → `string` on the two capture arrays) and the `ThemeChoice` import drop already landed in **T1 Step 5** — do NOT repeat them here. This step is logic/seed corrections only.
 
-  Change the import line (line 7) to drop the now-unused `ThemeChoice` and reflect string themes:
+  Three existing cases interact with the generalized control:
+
+  - `'seeds fields from the project and maps an absent theme to Global'` (line ~91): the assertion `expect($theme().value).toBe('')` still holds (absent → `''`) — no change.
+
+  - `'does not emit a rename or theme update when nothing changed'` (line ~115): seeded `themeId: 'dark'` today, this now **FAILS** — `'dark'` is an unknown id, so the control seeds to `''`, `nextTheme` resolves to `undefined`, and the save guard `undefined !== 'dark'` is **true**, so it DOES emit `onSetTheme('local-1', undefined)` (the legacy-migration-on-save path) and `themes` becomes `[undefined]`, not `[]`. **Re-seed the project to a VALID built-in id** so genuinely nothing changes: change the seed to `themeId: 'sepia'`. Now the control seeds to `'sepia'`, Save with no edit yields `nextTheme === 'sepia' === project.themeId` → no emit → `expect(themes).toEqual([])` holds and the test truly asserts "no change → no emit".
+
+  - `'maps the Global theme option to an undefined project theme'` (line ~134): unchanged in logic — seeded `'dark'` reads back as `''`, selecting `''` keeps `nextTheme` `undefined`, and `undefined !== 'dark'` fires `[['local-1', undefined]]`. Verify the assertion still reads `[['local-1', undefined]]`.
+
+  **Add a new case** asserting the legacy-migration-on-save path explicitly (the behavior the re-seed above moved OUT of the "nothing changed" test):
 
 ```ts
-import type { Project } from '../src/shared/types'
+  it('emits undefined on Save for a legacy themeId seed (migration on save)', async () => {
+    const calls: Array<[string, string | undefined]> = []
+    await render(props({ project: { ...project, themeId: 'dark' } as Project, onSetTheme: (id, t) => calls.push([id, t]) }))
+    expect($theme().value).toBe('') // unknown legacy id seeds to Use global
+    await act(async () => { (container.querySelector('[data-action="save"]') as HTMLButtonElement).click() })
+    expect(calls).toEqual([['local-1', undefined]]) // stale 'dark' rewritten to undefined on save
+  })
 ```
 
-  In the test `'seeds fields from the project and maps an absent theme to Global'` (line 91), the assertion `expect($theme().value).toBe('')` still holds (absent → `''`); no change needed there beyond the import. In `'does not emit a rename or theme update when nothing changed'` (line 115), the project is seeded `themeId: 'dark'` — under the generalized control `'dark'` is unknown → seeds to `''`, and clicking Save with no change emits no theme update, so the assertion `expect(themes).toEqual([])` still holds; change the local type annotation `const themes: Array<ThemeChoice | undefined> = []` to `const themes: Array<string | undefined> = []`. In `'maps the Global theme option to an undefined project theme'` (line 134), change `const themes: Array<[string, ThemeChoice | undefined]> = []` to `Array<[string, string | undefined]>`; the body (`setSelect($theme(), '')` then Save → `[['local-1', undefined]]`) still holds because the seeded `'dark'` reads back as `''` and selecting `''` keeps it `''` → `undefined` only fires if it differs from `project.themeId` (`'dark'`), which it does (`undefined !== 'dark'`). Verify this case still asserts `[['local-1', undefined]]`.
+  (Match the `props`/`render`/`$theme` helper names, the `project` seed variable, and the project id already used in `tests/editProjectModal.test.ts`.)
 
 - [ ] **Step 7: Run both per-project tests.**
 
@@ -1296,7 +1393,9 @@ git commit -m "style(theme): .theme-gallery / .theme-card / .theme-swatch / .pro
 - **D5-5** (per-project theme → both regions; calm transitions): T3 resolution uses `activeProject?.themeId` for both `applyTheme` calls. ✅
 - **D5-6** (existing stores, no new IPC): localStorage `curator.theme` + `updateProjectSettings`. ✅
 - **D5-7** (gallery replaces the two segmented controls): T3 Settings rewrite. ✅
-- **D5-9** (swatch-only preview): no transient apply; gallery test asserts hover/focus does not call `onChange`. ✅
+- **D5-9 / D5-13** (swatch-only preview; roving-focus radiogroup): no transient apply; Arrow/Home/End move focus + a roving `tabIndex=0`/`.is-focused` marker only (no commit, no save), while `aria-checked` stays pinned to the committed theme — commit is click/Enter/Space only. Gallery test asserts hover/focus/arrow do not call `onChange` and `aria-checked` tracks the committed card. ✅
+- **D5-14** (legacy `themeId` cleanup): write-time-only drop in the IPC handler; a lingering legacy value is inert (resolves to Default at runtime). Deferred closer = a one-shot versioned migration, only if the `ThemeChoice` enum is ever removed. No read-path normalization. ✅
+- **MF4** (launch-flash): the App theme-apply effect uses `useLayoutEffect`, writing `data-theme` + token overrides before first paint so the document pane never flashes the dark `:root` base under light-document Default. ✅
 - **D5-11** (per-project select + swatch chip): T4. ✅
 - **D5-12** (Default one card, split swatch, "Default — mixed" + tooltip): T3 Settings `Swatch`/label/title; gallery test asserts split + label + tooltip. ✅
 - **Optional per-project marker (D5-5, OPTIONAL):** not built — the whole-app recolor is the primary cue (spec flags it optional). Documented as out of this plan.
