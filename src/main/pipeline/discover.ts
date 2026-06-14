@@ -1,6 +1,11 @@
 import { readdir, lstat } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import type { DocKind } from '@shared/types'
+import { safeResolve } from '../util/pathsafe'
+
+export interface DiscoverOptions {
+  docsSubpath?: string
+}
 
 const IGNORE_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', 'out', 'vendor', 'coverage'
@@ -23,7 +28,7 @@ function toPosix(p: string): string {
   return p.split(sep).join('/')
 }
 
-export async function discoverDetailed(root: string): Promise<DiscoverResult> {
+export async function discoverDetailed(root: string, options: DiscoverOptions = {}): Promise<DiscoverResult> {
   const found: { abs: string; rel: string; kind: DocKind; size: number }[] = []
   const skipped: { path: string; reason: string }[] = []
 
@@ -62,6 +67,40 @@ export async function discoverDetailed(root: string): Promise<DiscoverResult> {
       if (!entry.isFile()) continue
       await collectFile(abs)
     }
+  }
+
+  // Explicit docsSubpath (ADR-0004 override): confine discovery to the subpath,
+  // bypassing docs-folder auto-scoping. Paths stay relative to `root`.
+  const sub = options.docsSubpath?.trim().replace(/^\/+|\/+$/g, '')
+  if (sub) {
+    let base: string
+    try {
+      base = safeResolve(root, sub) // throws on traversal
+    } catch (err) {
+      throw err
+    }
+    try {
+      await readdir(base) // surface a missing subpath as a clean skip
+    } catch (err) {
+      return { docs: [], skipped: [{ path: sub, reason: `readdir failed: ${(err as Error).message}` }] }
+    }
+    await walk(base)
+    const mdSetSub = new Set(found.filter((f) => f.kind === 'md').map((f) => f.rel.replace(/\.md$/i, '')))
+    const dedupedSub = found.filter((f) => {
+      if (f.kind === 'html') {
+        const b = f.rel.replace(/\.html$/i, '')
+        if (mdSetSub.has(b)) {
+          skipped.push({ path: f.rel, reason: 'generated html shadowed by .md sibling' })
+          return false
+        }
+      }
+      return true
+    })
+    const cappedSub = dedupedSub.slice(0, MAX_DOCS)
+    if (dedupedSub.length > MAX_DOCS) {
+      skipped.push({ path: '(many)', reason: `doc count capped at ${MAX_DOCS} (had ${dedupedSub.length})` })
+    }
+    return { docs: cappedSub.map((f) => ({ path: f.rel, kind: f.kind })), skipped }
   }
 
   // Auto-scoping: if the root contains a top-level `docs`/`documentation` folder,
@@ -125,6 +164,6 @@ export async function discoverDetailed(root: string): Promise<DiscoverResult> {
   }
 }
 
-export async function discover(root: string): Promise<DiscoveredDoc[]> {
-  return (await discoverDetailed(root)).docs
+export async function discover(root: string, options: DiscoverOptions = {}): Promise<DiscoveredDoc[]> {
+  return (await discoverDetailed(root, options)).docs
 }
