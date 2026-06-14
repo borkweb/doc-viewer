@@ -38,6 +38,11 @@ export interface ParsedDoc {
 }
 
 // Persisted project records. `type` discriminates the union.
+// Per-region theme selection vocabulary. Single source of truth (the renderer's
+// lib/theme re-exports this). 'system' follows the OS via prefers-color-scheme.
+export type ThemeChoice = 'dark' | 'light' | 'system'
+export const THEME_CHOICES: readonly ThemeChoice[] = ['dark', 'light', 'system']
+
 export type ProjectStatus = 'ok' | 'unavailable' | 'building' | 'error'
 
 interface ProjectBase {
@@ -45,7 +50,7 @@ interface ProjectBase {
   name: string // editable display label
   addedAt: string // ISO timestamp
   status: ProjectStatus
-  themeId?: string // per-project theme override (Plan 5); absent = use global
+  themeId?: ThemeChoice // per-project document-theme override; absent = use global
 }
 
 export interface LocalProject extends ProjectBase {
@@ -117,7 +122,7 @@ export interface IpcApi {
   removeProject(id: string): Promise<void>
   updateProjectSettings(
     id: string,
-    patch: { name?: string; docsSubpath?: string; themeId?: string }
+    patch: { name?: string; docsSubpath?: string; themeId?: ThemeChoice }
   ): Promise<Project>
   rebuildProject(id: string): Promise<void> // "Pull latest" (github) / "Reindex" (local)
   cancelBuild(id: string): Promise<void>
