@@ -156,22 +156,77 @@ body {
   background: var(--scrollbar-thumb); border-radius: var(--radius-full);
   border: 2px solid transparent; background-clip: content-box; }
 
-.layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }
+/* ── App shell — full-width top nav, then sidebar + content row ──────────── */
+.app-shell { display: flex; flex-direction: column; height: 100vh; }
+.app-body { flex: 1; display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 0; }
+
+/* ── Top navigation bar — full width, flush on the chrome surface ────────── */
+.topbar {
+  flex: 0 0 auto; height: 44px; display: flex; align-items: center;
+  justify-content: space-between; gap: var(--space-2);
+  padding: 0 var(--space-2); background: var(--surface);
+  border-bottom: 1px solid var(--border); }
+.topbar-left, .topbar-right {
+  display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
+.topbar-left { flex: 1; min-width: 0; }
+
+/* Project select — flush/borderless chrome control, matching the sidebar feel */
+.topbar-select {
+  font: inherit; height: 28px; max-width: 220px; padding: 0 var(--space-2);
+  color: var(--fg); background: none; border: 0; border-radius: var(--radius);
+  transition: background var(--transition), box-shadow var(--transition); }
+.topbar-select:hover { background: var(--surface-alt); }
+.topbar-select:focus-visible {
+  outline: none; background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-ring); }
+
+/* Breadcrumb tail — muted separator + current document title */
+.breadcrumb { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.breadcrumb-sep { color: var(--muted); font-size: var(--text-md); flex: 0 0 auto; }
+.breadcrumb-title {
+  color: var(--fg); font-weight: var(--weight-medium);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Contents button + popover anchor */
+.toc-wrap { position: relative; }
+.topbar-button {
+  display: inline-flex; align-items: center; gap: var(--space-2); height: 28px;
+  padding: 0 var(--space-3); font: inherit; color: var(--fg); cursor: pointer;
+  background: none; border: 0; border-radius: var(--radius);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition); }
+.topbar-button:hover { background: var(--surface-alt); }
+.topbar-button.active { background: var(--accent-soft); color: var(--accent); }
+.topbar-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+.topbar-button .topbar-caret { font-size: 10px; color: var(--muted); }
+.topbar-button.active .topbar-caret { color: var(--accent); }
+
+/* Contents mega-menu — floating popover, anchored under the button, right-aligned */
+.toc-menu {
+  position: absolute; top: calc(100% + var(--space-2)); right: 0; z-index: 40;
+  min-width: 260px; max-width: 360px; max-height: min(70vh, 520px); overflow-y: auto;
+  padding: var(--space-1); background: var(--surface-raised);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); }
+.toc-menu-item {
+  display: block; width: 100%; text-align: left; font: inherit; color: var(--fg);
+  padding: var(--space-1) var(--space-3); background: none; border: 0;
+  border-radius: var(--radius); cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: background var(--transition), color var(--transition); }
+.toc-menu-item:hover { background: var(--accent-soft); }
+.toc-menu-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 
 /* ── Sidebar chrome — dense ─────────────────────────────────────────────── */
 .sidebar { background: var(--surface); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; overflow: hidden; }
-.sidebar header { padding: var(--space-2); border-bottom: 1px solid var(--border);
-  display: flex; gap: var(--space-2); align-items: center; }
-.sidebar select, .sidebar button, .sidebar input { font: inherit; }
+.sidebar button, .sidebar input { font: inherit; }
 /* Chrome controls sit flush on the surface — transparent at rest, a subtle tint
    on hover, an accent halo on focus. Same affordance as tree/result rows. */
-.sidebar select, .sidebar input {
+.sidebar input {
   height: 28px; padding: 0 var(--space-2); color: var(--fg);
   background: none; border: 0; border-radius: var(--radius);
   transition: background var(--transition), box-shadow var(--transition); }
-.sidebar select:hover, .sidebar input:hover { background: var(--surface-alt); }
-.sidebar select:focus-visible, .sidebar input:focus-visible {
+.sidebar input:hover { background: var(--surface-alt); }
+.sidebar input:focus-visible {
   outline: none; background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-ring); }
 .sidebar input::placeholder { color: var(--muted); }
 

@@ -1,51 +1,19 @@
-import type { Project, NavNode, SearchResult } from '@shared/types'
+import type { NavNode, SearchResult } from '@shared/types'
 import DocTree from './DocTree'
 import SearchBox from './SearchBox'
 
 interface Props {
-  projects: Project[]
   activeId: string | null
   tree: NavNode[]
   docPath: string | null
-  onSelectProject: (id: string) => void
-  onAddProject: () => void
   onOpenDoc: (path: string) => void
   onOpenResult: (r: SearchResult) => void
-  onOpenSettings: () => void
 }
 
 export default function Sidebar(props: Props): React.JSX.Element {
-  const { projects, activeId, tree, docPath } = props
+  const { activeId, tree, docPath } = props
   return (
     <aside className="sidebar">
-      <header>
-        <select
-          value={activeId ?? ''}
-          onChange={(e) => props.onSelectProject(e.target.value)}
-          style={{ flex: 1 }}
-        >
-          <option value="" disabled>Select a project…</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <button
-          className="icon-button"
-          onClick={props.onAddProject}
-          title="Add a local directory"
-          aria-label="Add a local directory"
-        >
-          <i className="fa-solid fa-plus" aria-hidden="true" />
-        </button>
-        <button
-          className="icon-button"
-          onClick={props.onOpenSettings}
-          title="Settings"
-          aria-label="Settings"
-        >
-          <i className="fa-solid fa-gear" aria-hidden="true" />
-        </button>
-      </header>
       <div className="scroll">
         <SearchBox projectId={activeId} onOpenResult={props.onOpenResult} />
         {activeId ? (
