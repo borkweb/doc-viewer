@@ -18,6 +18,7 @@ export default function SearchBox({ projectId, onOpenResult }: Props): React.JSX
     timer.current = setTimeout(async () => {
       setResults(await window.api.search(projectId, query))
     }, 150)
+    return () => { if (timer.current) clearTimeout(timer.current) }
   }, [query, projectId])
 
   return (

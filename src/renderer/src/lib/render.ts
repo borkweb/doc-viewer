@@ -83,7 +83,11 @@ export async function enhanceDiagrams(container: HTMLElement): Promise<void> {
         }
       })
     } catch (err) {
-      canvas.innerHTML = `<div class="render-error">Diagram failed: ${(err as Error).message}</div>`
+      // Use textContent (not innerHTML): mermaid errors can echo untrusted diagram source.
+      const errEl = document.createElement('div')
+      errEl.className = 'render-error'
+      errEl.textContent = `Diagram failed: ${(err as Error).message}`
+      canvas.replaceChildren(errEl)
     }
   }
 }

@@ -191,9 +191,12 @@ export default defineConfig({
     "baseUrl": ".",
     "paths": { "@shared/*": ["src/shared/*"] }
   },
-  "include": ["src/main", "src/preload", "src/shared", "tests", "electron.vite.config.ts", "vitest.config.ts"]
+  "include": ["src/main", "src/preload", "src/shared", "tests", "electron.vite.config.ts", "vitest.config.ts"],
+  "exclude": ["tests/render.test.ts"]
 }
 ```
+
+(The DOM test `tests/render.test.ts` is excluded from the node project and routed to the web project below, since it uses DOM APIs. Vitest still runs it under jsdom via the `environmentMatchGlobs` config regardless of tsconfig routing.)
 
 `tsconfig.web.json`:
 ```json
@@ -212,7 +215,7 @@ export default defineConfig({
     "baseUrl": ".",
     "paths": { "@shared/*": ["src/shared/*"] }
   },
-  "include": ["src/renderer/src", "src/shared"]
+  "include": ["src/renderer/src", "src/shared", "tests/render.test.ts"]
 }
 ```
 
@@ -1612,7 +1615,11 @@ export async function enhanceDiagrams(container: HTMLElement): Promise<void> {
         }
       })
     } catch (err) {
-      canvas.innerHTML = `<div class="render-error">Diagram failed: ${(err as Error).message}</div>`
+      // Use textContent (not innerHTML): mermaid errors can echo untrusted diagram source.
+      const errEl = document.createElement('div')
+      errEl.className = 'render-error'
+      errEl.textContent = `Diagram failed: ${(err as Error).message}`
+      canvas.replaceChildren(errEl)
     }
   }
 }
@@ -1842,6 +1849,7 @@ export default function SearchBox({ projectId, onOpenResult }: Props): React.JSX
     timer.current = setTimeout(async () => {
       setResults(await window.api.search(projectId, query))
     }, 150)
+    return () => { if (timer.current) clearTimeout(timer.current) }
   }, [query, projectId])
 
   return (
