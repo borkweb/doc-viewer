@@ -47,7 +47,12 @@ export interface DocStats {
 // Compute stats from rendered content. Call after enhanceDiagrams so diagrams
 // exist in the DOM and their source is counted as a diagram (not as words).
 export function computeDocStats(container: HTMLElement): DocStats {
-  const text = container.textContent ?? ''
+  // The word count is document content only. Clone and drop code-block chrome
+  // (line-number gutter + toolbar) so gutter digits and button/badge labels
+  // aren't counted as words. Diagrams are collected from the live container.
+  const clone = container.cloneNode(true) as HTMLElement
+  clone.querySelectorAll('.code-gutter, .code-toolbar').forEach((el) => el.remove())
+  const text = clone.textContent ?? ''
   const words = (text.match(/\S+/g) ?? []).length
   return { words, diagrams: collectDiagrams(container) }
 }

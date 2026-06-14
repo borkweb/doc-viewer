@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { renderMarkdown, buildToc, highlightCode } from '../src/renderer/src/lib/render'
+import { renderMarkdown, buildToc, highlightCode, computeDocStats } from '../src/renderer/src/lib/render'
 import { parseMarkdown } from '../src/main/pipeline/parse'
 
 describe('renderMarkdown', () => {
@@ -82,5 +82,17 @@ describe('highlightCode', () => {
   it('moves the pre into a .code-block wrapper', () => {
     const c = setup('```js\nfoo()\n```')
     expect(c.querySelector('.code-block .code-body > pre > code.hljs')).not.toBeNull()
+  })
+})
+
+describe('computeDocStats excludes code chrome', () => {
+  it('does not count gutter numbers or toolbar labels as words', () => {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown('hello world\n\n```js\na\nb\n```')
+    highlightCode(c)
+    const stats = computeDocStats(c)
+    // "hello" "world" + code words "a" "b" = 4. Gutter ("1" "2"), the "js"
+    // badge, and "Copy" must NOT be counted.
+    expect(stats.words).toBe(4)
   })
 })
