@@ -1,0 +1,3 @@
+# Notes
+
+Root-level notes.
