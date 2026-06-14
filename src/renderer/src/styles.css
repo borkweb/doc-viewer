@@ -359,6 +359,48 @@ body {
   background: var(--code-bg); padding: 0.15em 0.4em; border-radius: var(--radius-sm);
   border: 1px solid var(--border); }
 .content pre code { background: none; padding: 0; border: 0; }
+
+/* ── Syntax highlighting — highlight.js token map (theme-aware tokens) ───── */
+.content .hljs { color: var(--code-fg); background: none; }
+.content .hljs-comment, .content .hljs-quote { color: var(--muted); font-style: italic; }
+.content .hljs-keyword, .content .hljs-selector-tag, .content .hljs-literal,
+.content .hljs-section, .content .hljs-doctag { color: var(--accent); }
+.content .hljs-string, .content .hljs-regexp, .content .hljs-addition,
+.content .hljs-meta .hljs-string { color: var(--success); }
+.content .hljs-number, .content .hljs-symbol, .content .hljs-bullet { color: var(--warning); }
+.content .hljs-title, .content .hljs-title.function_, .content .hljs-built_in,
+.content .hljs-type, .content .hljs-title.class_, .content .hljs-class .hljs-title { color: var(--highlight); }
+.content .hljs-attr, .content .hljs-attribute, .content .hljs-variable,
+.content .hljs-template-variable, .content .hljs-name, .content .hljs-tag { color: var(--code-fg); }
+.content .hljs-deletion { color: var(--error); }
+.content .hljs-meta { color: var(--muted); }
+.content .hljs-emphasis { font-style: italic; }
+.content .hljs-strong { font-weight: var(--weight-semibold); }
+
+/* ── Code block chrome: toolbar (badge + copy) and line-number gutter ───── */
+.content .code-block { margin: var(--space-4) 0; border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden; background: var(--code-bg); }
+.content .code-toolbar { display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-bottom: 1px solid var(--border);
+  background: var(--surface); }
+.content .code-lang { margin-right: auto; font-family: var(--font-mono);
+  font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); }
+.content .code-copy { margin-left: auto; font-family: var(--font-ui);
+  font-size: var(--text-xs); color: var(--muted); background: transparent;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2); cursor: pointer; }
+.content .code-copy:hover { color: var(--fg); border-color: var(--border-strong); }
+.content .code-copy.copied { color: var(--success); border-color: var(--success); }
+.content .code-body { display: flex; align-items: stretch; line-height: 1.6; }
+.content .code-gutter { flex: 0 0 auto; padding: var(--space-4) var(--space-2);
+  text-align: right; color: var(--faint); background: var(--code-bg);
+  font-family: var(--font-mono); font-size: 0.86em; line-height: inherit;
+  white-space: pre; user-select: none; border-right: 1px solid var(--border); }
+/* Neutralize the bare-pre styling now that the pre lives inside .code-block. */
+.content .code-block pre { flex: 1 1 auto; margin: 0; border: 0; border-radius: 0;
+  line-height: inherit; }
+
 .content table { border-collapse: collapse; width: 100%; margin: 1em 0; }
 .content th, .content td { border: 1px solid var(--border);
   padding: var(--space-2) var(--space-3); text-align: left; }
