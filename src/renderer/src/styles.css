@@ -373,6 +373,13 @@ body {
 .diagram { margin: 1.4em 0; }
 .diagram-canvas { height: min(70vh, 720px); background: var(--diagram-bg);
   border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; cursor: grab; }
+/* Click to expand: break out of the centered reading column to fill the content
+   pane (viewport minus the sidebar and a gutter), staying centered. */
+.diagram.expanded {
+  width: calc(100vw - var(--sidebar-w) - 2 * var(--space-8));
+  max-width: none;
+  margin-left: calc((100% - (100vw - var(--sidebar-w) - 2 * var(--space-8))) / 2);
+}
 .diagram.expanded .diagram-canvas { height: min(82vh, 900px); }
 .diagram-canvas svg text { fill: var(--diagram-ink); }
 
