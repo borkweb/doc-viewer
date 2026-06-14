@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { IpcApi, BuildProgress } from '../shared/types'
+import type { IpcApi, BuildProgress, IndexChanged } from '../shared/types'
 
 const api: IpcApi = {
   listProjects: () => ipcRenderer.invoke('projects:list'),
@@ -23,6 +23,11 @@ const api: IpcApi = {
     const handler = (_e: unknown, p: BuildProgress): void => cb(p)
     ipcRenderer.on('build:progress', handler)
     return () => ipcRenderer.removeListener('build:progress', handler)
+  },
+  onIndexChanged: (cb) => {
+    const handler = (_e: unknown, p: IndexChanged): void => cb(p)
+    ipcRenderer.on('index:changed', handler)
+    return () => ipcRenderer.removeListener('index:changed', handler)
   }
 }
 

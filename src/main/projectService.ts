@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import type { spawn } from 'node:child_process'
 import type MiniSearch from 'minisearch'
 import type {
-  NavNode, ParsedDoc, SearchResult, DocKind, Project, GithubProject, BuildProgress
+  NavNode, ParsedDoc, SearchResult, DocKind, Project, GithubProject, BuildProgress, IndexChanged
 } from '@shared/types'
 import {
   getProject, updateProject, removeProject as registryRemoveProject,
@@ -33,6 +33,30 @@ let active: ActiveProject | null = null
 const inFlight = new Map<string, AbortController>()
 type BuildDeps = { spawnFn?: typeof spawn }
 const noProgress = (): void => {}
+
+export type ProjectGenerationToken = number
+type IndexSink = (payload: IndexChanged) => void
+let indexSink: IndexSink | null = null
+let generation: ProjectGenerationToken = 0
+
+export function setIndexSink(sink: IndexSink | null): void {
+  indexSink = sink
+}
+
+export function getGenerationToken(): ProjectGenerationToken {
+  return generation
+}
+
+export function stopWatch(): void {
+  generation += 1
+}
+
+export function releaseIfActive(id: string): void {
+  if (active?.id === id) {
+    stopWatch()
+    active = null
+  }
+}
 
 export function cancelBuild(id: string): void {
   inFlight.get(id)?.abort()
