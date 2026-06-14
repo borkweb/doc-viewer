@@ -306,7 +306,7 @@ export default function ManageProjects(props: ManageProjectsProps): React.JSX.El
                         onClick={() => props.onDelete(project.id)}
                         disabled={disabled}
                       >
-                        Confirm
+                        Delete
                       </button>
                     </span>
                   ) : (

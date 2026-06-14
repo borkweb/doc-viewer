@@ -218,7 +218,11 @@ describe('ManageProjects', () => {
 
     await click(container.querySelector('[data-row="local-1"] [data-action="delete"]')!)
     expect(container.querySelector('[data-row="local-1"]')?.textContent).toContain('Delete Local Alpha?')
-    await click(container.querySelector('[data-row="local-1"] [data-action="cancel-delete"]')!)
+    const cancel = container.querySelector('[data-row="local-1"] [data-action="cancel-delete"]') as HTMLButtonElement
+    const confirm = container.querySelector('[data-row="local-1"] [data-action="confirm-delete"]') as HTMLButtonElement
+    expect(cancel.textContent).toBe('Cancel')
+    expect(confirm.textContent).toBe('Delete')
+    await click(cancel)
     expect(deleted).toEqual([])
     await click(container.querySelector('[data-row="local-1"] [data-action="delete"]')!)
     await click(container.querySelector('[data-row="local-1"] [data-action="confirm-delete"]')!)
