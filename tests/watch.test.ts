@@ -158,12 +158,15 @@ describe('watcher lifecycle (projectService)', () => {
     const wa = fakeWatch()
     const wb = fakeWatch()
     let releaseRead!: () => void
+    let startedRead!: () => void
     let armed = false
     let blocked = false
     const gate = new Promise<void>((resolve) => { releaseRead = resolve })
+    const started = new Promise<void>((resolve) => { startedRead = resolve })
     const readFileFn = (async (path, encoding) => {
       if (armed) {
         blocked = true
+        startedRead()
         await gate
       }
       return readFile(path, encoding)
@@ -171,7 +174,7 @@ describe('watcher lifecycle (projectService)', () => {
     await selectProject(a, { watchFn: wa.fn, debounceMs: 10, readFileFn })
     armed = true
     wa.fire()
-    await delay(15)
+    await Promise.race([started, delay(100)])
     expect(blocked).toBe(true)
     await selectProject(b, { watchFn: wb.fn, debounceMs: 10 })
     releaseRead()
