@@ -15,6 +15,7 @@ interface Props {
   docPath: string
   scrollToId: string | null
   scrollNonce: number
+  restoreHeadingId?: string | null
   onToc?: (toc: TocEntry[]) => void
   onStats?: (stats: DocStats | null) => void
 }
@@ -24,6 +25,7 @@ export default function DocView({
   docPath,
   scrollToId,
   scrollNonce,
+  restoreHeadingId,
   onToc,
   onStats
 }: Props): React.JSX.Element {
@@ -35,6 +37,8 @@ export default function DocView({
   // latest value without forcing the render/enhance effect to re-run on jumps.
   const targetRef = useRef<string | null>(scrollToId)
   targetRef.current = scrollToId
+  const restoreRef = useRef<string | null>(restoreHeadingId ?? null)
+  restoreRef.current = restoreHeadingId ?? null
 
   const doScroll = (): void => {
     const id = targetRef.current
@@ -76,7 +80,12 @@ export default function DocView({
     highlightCode(container)
     void enhanceDiagrams(container).then(() => {
       onStats?.(computeDocStats(container))
-      doScroll()
+      if (targetRef.current) {
+        doScroll()
+      } else if (restoreRef.current) {
+        const el = container.querySelector(`#${CSS.escape(restoreRef.current)}`)
+        el?.scrollIntoView({ block: 'start' })
+      }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [html, kind])
