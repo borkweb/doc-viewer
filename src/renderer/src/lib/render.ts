@@ -7,6 +7,68 @@ import { slugify } from '@shared/slug'
 
 marked.setOptions({ gfm: true, breaks: false })
 
+interface FrontmatterPair {
+  key: string
+  value: string
+}
+
+// Extract a leading `---`-fenced frontmatter block. Leading blank lines are
+// tolerated before the opening fence. Each line splits on its first `:` into
+// key/value; a colon-less line becomes a value-only pair (empty key). If no
+// closing `---` is found, the input is not frontmatter and is returned verbatim
+// as `body` with no pairs.
+function extractFrontmatter(md: string): { pairs: FrontmatterPair[]; body: string } {
+  const lines = md.split('\n')
+  let i = 0
+  while (i < lines.length && lines[i].trim() === '') i++
+  if (i >= lines.length || lines[i].trim() !== '---') return { pairs: [], body: md }
+
+  const open = i
+  let close = -1
+  for (let j = open + 1; j < lines.length; j++) {
+    if (lines[j].trim() === '---') {
+      close = j
+      break
+    }
+  }
+  if (close === -1) return { pairs: [], body: md }
+
+  const pairs: FrontmatterPair[] = []
+  for (let j = open + 1; j < close; j++) {
+    const line = lines[j]
+    if (line.trim() === '') continue
+    const colon = line.indexOf(':')
+    if (colon === -1) {
+      pairs.push({ key: '', value: line.trim() })
+    } else {
+      pairs.push({ key: line.slice(0, colon).trim(), value: line.slice(colon + 1).trim() })
+    }
+  }
+  const body = lines.slice(close + 1).join('\n').replace(/^\n+/, '')
+  return { pairs, body }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+// Build the frontmatter <dl> HTML fragment. Colon-less rows render as a single
+// full-width <dd class="frontmatter-loose">.
+function renderFrontmatter(pairs: FrontmatterPair[]): string {
+  const rows = pairs
+    .map((p) =>
+      p.key === ''
+        ? `<dd class="frontmatter-loose">${escapeHtml(p.value)}</dd>`
+        : `<dt>${escapeHtml(p.key)}</dt><dd>${escapeHtml(p.value)}</dd>`
+    )
+    .join('')
+  return `<dl class="frontmatter">${rows}</dl>`
+}
+
 let mermaidReady = false
 function initMermaid(): void {
   if (mermaidReady) return
@@ -20,10 +82,14 @@ function initMermaid(): void {
   mermaidReady = true
 }
 
-// Markdown → sanitized HTML string.
+// Markdown → sanitized HTML string. A leading `---`-fenced frontmatter block is
+// lifted out and rendered as a faded metadata <dl> prepended to the body; the
+// combined string is sanitized through the same DOMPurify path as all content.
 export function renderMarkdown(md: string): string {
-  const raw = marked.parse(md, { async: false }) as string
-  return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } })
+  const { pairs, body } = extractFrontmatter(md)
+  const head = pairs.length ? renderFrontmatter(pairs) : ''
+  const raw = marked.parse(body, { async: false }) as string
+  return DOMPurify.sanitize(head + raw, { USE_PROFILES: { html: true } })
 }
 
 export interface TocEntry {
@@ -51,7 +117,7 @@ export function computeDocStats(container: HTMLElement): DocStats {
   // (line-number gutter + toolbar) so gutter digits and button/badge labels
   // aren't counted as words. Diagrams are collected from the live container.
   const clone = container.cloneNode(true) as HTMLElement
-  clone.querySelectorAll('.code-gutter, .code-toolbar').forEach((el) => el.remove())
+  clone.querySelectorAll('.code-gutter, .code-toolbar, .frontmatter').forEach((el) => el.remove())
   const text = clone.textContent ?? ''
   const words = (text.match(/\S+/g) ?? []).length
   return { words, diagrams: collectDiagrams(container) }

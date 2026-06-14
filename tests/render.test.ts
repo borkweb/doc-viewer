@@ -20,6 +20,63 @@ describe('renderMarkdown', () => {
   })
 })
 
+describe('frontmatter rendering', () => {
+  function fm(md: string): HTMLElement | null {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown(md)
+    return c.querySelector('dl.frontmatter')
+  }
+
+  it('renders a key/value frontmatter block as a faded dl', () => {
+    const dl = fm('---\ntitle: My Document\nauthor: Matt\n---\n\n# Body')
+    expect(dl).not.toBeNull()
+    const dts = Array.from(dl!.querySelectorAll('dt')).map((n) => n.textContent)
+    const dds = Array.from(dl!.querySelectorAll('dd')).map((n) => n.textContent)
+    expect(dts).toEqual(['title', 'author'])
+    expect(dds).toEqual(['My Document', 'Matt'])
+  })
+
+  it('renders the body after the frontmatter', () => {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown('---\ntitle: T\n---\n\n# Heading\n\nbody')
+    expect(c.querySelector('h1')?.textContent).toBe('Heading')
+  })
+
+  it('tolerates leading blank lines before the opening fence', () => {
+    expect(fm('\n\n---\ntitle: T\n---\n\nbody')).not.toBeNull()
+  })
+
+  it('does not treat content as frontmatter when the closing fence is missing', () => {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown('---\ntitle: T\n\nbody with no closer')
+    expect(c.querySelector('dl.frontmatter')).toBeNull()
+  })
+
+  it('does not treat a mid-document --- as frontmatter', () => {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown('# Intro\n\n---\ntitle: T\n---\n')
+    expect(c.querySelector('dl.frontmatter')).toBeNull()
+  })
+
+  it('splits a value on the first colon only', () => {
+    const dl = fm('---\ntime: 12:30\n---\n')
+    expect(dl!.querySelector('dt')?.textContent).toBe('time')
+    expect(dl!.querySelector('dd')?.textContent).toBe('12:30')
+  })
+
+  it('renders a colon-less line as a full-width loose row', () => {
+    const dl = fm('---\ntags:\n- draft\n---\n')
+    const loose = dl!.querySelector('dd.frontmatter-loose')
+    expect(loose?.textContent).toBe('- draft')
+  })
+
+  it('sanitizes HTML in a frontmatter value', () => {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown('---\ntitle: <script>alert(1)</script>\n---\n')
+    expect(c.innerHTML.toLowerCase()).not.toContain('<script')
+  })
+})
+
 describe('heading slug parity (parse vs buildToc)', () => {
   it('produces the same anchor for a heading containing a link', () => {
     const md = '## [Docs](https://x)\n\nbody'
@@ -94,5 +151,13 @@ describe('computeDocStats excludes code chrome', () => {
     // "hello" "world" + code words "a" "b" = 4. Gutter ("1" "2"), the "js"
     // badge, and "Copy" must NOT be counted.
     expect(stats.words).toBe(4)
+  })
+
+  it('does not count frontmatter keys/values as words', () => {
+    const c = document.createElement('div')
+    c.innerHTML = renderMarkdown('---\ntitle: My Document\nauthor: Matt\n---\n\nhello world')
+    const stats = computeDocStats(c)
+    // Only the body "hello" "world" = 2. Frontmatter text is excluded.
+    expect(stats.words).toBe(2)
   })
 })
