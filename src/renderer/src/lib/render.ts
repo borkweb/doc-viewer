@@ -2,6 +2,7 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import mermaid from 'mermaid'
 import svgPanZoom from 'svg-pan-zoom'
+import { slugify } from '@shared/slug'
 
 marked.setOptions({ gfm: true, breaks: false })
 
@@ -24,10 +25,6 @@ export function renderMarkdown(md: string): string {
   return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } })
 }
 
-export function slugifyHeading(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
-
 export interface TocEntry {
   id: string
   text: string
@@ -39,7 +36,7 @@ export function buildToc(container: HTMLElement): TocEntry[] {
   const toc: TocEntry[] = []
   const used = new Map<string, number>()
   container.querySelectorAll('h1, h2, h3').forEach((h) => {
-    const base = slugifyHeading(h.textContent ?? '')
+    const base = slugify(h.textContent ?? '')
     const n = used.get(base) ?? 0
     used.set(base, n + 1)
     const id = n === 0 ? base : `${base}-${n}`

@@ -1,11 +1,8 @@
 import type { ParsedDoc, Section, DocKind } from '@shared/types'
+import { slugify, stripInlineMarkdown } from '@shared/slug'
 
-export function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
+// Re-exported for existing importers (e.g. tests).
+export { slugify } from '@shared/slug'
 
 export function prettifyFilename(name: string): string {
   const base = name.replace(/\.(md|html)$/i, '').replace(/^\d+[-_]/, '')
@@ -77,7 +74,7 @@ export function parseMarkdown(path: string, name: string, raw: string): ParsedDo
     const start = h.line + 1
     const end = idx + 1 < headings.length ? headings[idx + 1].line : lines.length
     const body = stripMarkdown(lines.slice(start, end).join('\n'))
-    const headingId = uniqueSlug(slugify(h.text))
+    const headingId = uniqueSlug(slugify(stripInlineMarkdown(h.text)))
     sections.push({
       id: `${path}#${headingId}`,
       docPath: path,
