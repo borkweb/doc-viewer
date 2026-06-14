@@ -99,3 +99,15 @@ describe('buildGithubRef', () => {
     await expect(p).rejects.toThrow(/cancel/i)
   })
 })
+
+describe('buildGithubRef (adversarial)', () => {
+  it('builds an empty repo (no docs) with a present, zero-doc cache', async () => {
+    const spawnFn = repoSpawn({})
+    const res = await buildGithubRef(project(), 'main', () => {}, new AbortController().signal, { spawnFn })
+    expect(res.docCount).toBe(0)
+    const cache = await readCache('p1', 'main')
+    expect(cache).not.toBeNull()
+    expect(cache!.manifest.docCount).toBe(0)
+    expect(cache!.manifest.tree).toEqual([])
+  })
+})

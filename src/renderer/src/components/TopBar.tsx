@@ -5,10 +5,12 @@ import type { TocEntry } from '../lib/render'
 interface Props {
   projects: Project[]
   activeId: string | null
+  activeProject: Project | null
   docTitle: string | null
   toc: TocEntry[]
   onSelectProject: (id: string) => void
-  onAddProject: () => void
+  onOpenAdd: () => void
+  onRebuild: () => void
   onJumpTo: (id: string) => void
   onOpenSettings: () => void
 }
@@ -70,9 +72,9 @@ export default function TopBar(props: Props): React.JSX.Element {
         </select>
         <button
           className="icon-button"
-          onClick={props.onAddProject}
-          title="Add a local directory"
-          aria-label="Add a local directory"
+          onClick={props.onOpenAdd}
+          title="Add project"
+          aria-label="Add project"
         >
           <i className="fa-solid fa-plus" aria-hidden="true" />
         </button>
@@ -85,6 +87,16 @@ export default function TopBar(props: Props): React.JSX.Element {
       </div>
 
       <div className="topbar-right">
+        {props.activeProject && (
+          <button
+            className="icon-button"
+            onClick={props.onRebuild}
+            title={props.activeProject.type === 'github' ? 'Pull latest' : 'Reindex'}
+            aria-label={props.activeProject.type === 'github' ? 'Pull latest' : 'Reindex'}
+          >
+            <i className="fa-solid fa-rotate" aria-hidden="true" />
+          </button>
+        )}
         {hasToc && (
           <div className="toc-wrap">
             <button

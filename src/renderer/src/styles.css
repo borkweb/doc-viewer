@@ -476,3 +476,28 @@ body {
 .segmented button.active { background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-semibold); }
 .segmented button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 .segmented button .seg-icon { font-size: 11px; }
+
+/* ── Add-project modal (Plan 2b) ─────────────────────────────────────────── */
+.add-modal { width: 460px; }
+.add-tabs { display: flex; gap: var(--space-2); padding: 0 var(--space-4) var(--space-3); }
+.add-tab { padding: 6px 12px; border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border); }
+.add-tab.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.add-body { display: flex; flex-direction: column; gap: var(--space-3); padding: 0 var(--space-4) var(--space-4); }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.field span { color: var(--muted); }
+.field input { padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--fg); }
+.add-progress { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.add-error { color: var(--danger, #e5484d); font-size: 13px; }
+.add-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+.add-hint { color: var(--muted); font-size: 13px; }
+
+/* ── Branch switcher (Plan 2b) ───────────────────────────────────────────── */
+.branch-switcher { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.branch-input { padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--fg); width: 120px; }
+
+/* In the status bar the switcher sits after the project path — separated by a
+   margin and shrunk to fit the compact (26px) footer. */
+.status-bar .branch-switcher { margin-left: var(--space-4); gap: 4px; flex: 0 0 auto; }
+.status-bar .branch-switcher .topbar-select { height: 20px; max-width: 160px; font-size: var(--text-sm); }
+.status-bar .branch-switcher .icon-button { height: 20px; width: 20px; }
+.status-bar .branch-switcher .branch-input { height: 20px; width: 110px; padding: 1px 6px; font-size: var(--text-sm); }

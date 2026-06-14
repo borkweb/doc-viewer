@@ -32,9 +32,15 @@ for (const key of [
   'Element',
   'HTMLElement',
   'HTMLDivElement',
+  'HTMLInputElement',
+  'HTMLButtonElement',
+  'HTMLSelectElement',
+  'HTMLOptionElement',
+  'HTMLHeadingElement',
   'DocumentFragment',
   'Text',
   'Comment',
+  'MutationObserver',
   'getComputedStyle',
   'requestAnimationFrame',
   'cancelAnimationFrame'
@@ -44,3 +50,9 @@ for (const key of [
 
 // `window` should point at the jsdom window object itself.
 g.window = dom.window
+
+// React 19's `act()` requires this flag to flush updates synchronously without
+// warning. Component tests dispatch DOM events via jsdom's window-scoped
+// `Event` (`window.Event`), so we deliberately do NOT override Node's global
+// `Event` here — the main-process AbortController tests depend on it.
+g.IS_REACT_ACT_ENVIRONMENT = true
