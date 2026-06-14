@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { Project, NavNode, SearchResult, ThemeChoice } from '@shared/types'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
@@ -15,6 +15,7 @@ import {
   resolveTheme,
   type ThemeSettings
 } from './lib/theme'
+import { loadSession, saveSession, pickAnchor, type SessionState } from './lib/session'
 
 // Find a document's display title in the nav tree by its relative path.
 function findDocTitle(nodes: NavNode[], path: string): string | null {
@@ -46,10 +47,15 @@ export default function App(): React.JSX.Element {
   const [tree, setTree] = useState<NavNode[]>([])
   const [docPath, setDocPath] = useState<string | null>(null)
   const [scrollToId, setScrollToId] = useState<string | null>(null)
+  const [restoreHeadingId, setRestoreHeadingId] = useState<string | null>(null)
   // Bumped on every jump so DocView re-scrolls even to the same heading twice.
   const [scrollNonce, setScrollNonce] = useState(0)
   const [toc, setToc] = useState<TocEntry[]>([])
   const [stats, setStats] = useState<DocStats | null>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  const [initialSession] = useState<SessionState>(loadSession)
+  const sessionRef = useRef<SessionState>(initialSession)
+  const didRunRef = useRef(false)
 
   // Theme: chrome and document themed independently; 'system' follows the OS.
   const [theme, setTheme] = useState<ThemeSettings>(loadThemeSettings)
@@ -77,19 +83,51 @@ export default function App(): React.JSX.Element {
     setProjects(await window.api.listProjects())
   }, [])
 
-  useEffect(() => { void refreshProjects() }, [refreshProjects])
-
   // Clear per-document state on any navigation that changes the open doc.
   const resetDocState = useCallback(() => {
     setToc([])
     setStats(null)
   }, [])
 
+  useEffect(() => {
+    if (didRunRef.current) return
+    didRunRef.current = true
+    void (async () => {
+      const list = await window.api.listProjects()
+      setProjects(list)
+
+      const saved = sessionRef.current
+      const pid = saved.lastProjectId
+      if (!pid) return
+
+      const project = list.find((p) => p.id === pid)
+      if (!project || project.status === 'unavailable') return
+
+      setActiveId(pid)
+      setDocPath(null)
+      setRestoreHeadingId(null)
+      resetDocState()
+      const { tree: nextTree } = await window.api.selectProject(pid)
+      setTree(nextTree)
+
+      const anchor = saved.perProject[pid]
+      if (anchor && treeHasPath(nextTree, anchor.docPath)) {
+        setRestoreHeadingId(anchor.headingId ?? null)
+        setScrollToId(null)
+        setDocPath(anchor.docPath)
+        resetDocState()
+      }
+    })()
+  }, [resetDocState])
+
   const selectProject = useCallback(async (id: string) => {
     setView('docs')
     setActiveId(id)
     setDocPath(null)
+    setRestoreHeadingId(null)
     resetDocState()
+    sessionRef.current.lastProjectId = id
+    saveSession(sessionRef.current)
     const { tree } = await window.api.selectProject(id)
     setTree(tree)
   }, [resetDocState])
@@ -134,14 +172,26 @@ export default function App(): React.JSX.Element {
     setDocPath(r.docPath)
     resetDocState()
     setScrollToId(r.headingId || null)
+    setRestoreHeadingId(null)
     setScrollNonce((n) => n + 1)
-  }, [resetDocState])
+    if (activeId) {
+      sessionRef.current.lastProjectId = activeId
+      sessionRef.current.perProject[activeId] = { docPath: r.docPath, headingId: r.headingId || undefined }
+      saveSession(sessionRef.current)
+    }
+  }, [resetDocState, activeId])
 
   const openDoc = useCallback((path: string) => {
     setDocPath(path)
     resetDocState()
     setScrollToId(null)
-  }, [resetDocState])
+    setRestoreHeadingId(null)
+    if (activeId) {
+      sessionRef.current.lastProjectId = activeId
+      sessionRef.current.perProject[activeId] = { docPath: path, headingId: undefined }
+      saveSession(sessionRef.current)
+    }
+  }, [resetDocState, activeId])
 
   // Jump to a heading in the current doc (e.g. from the Contents menu).
   const jumpTo = useCallback((id: string) => {
@@ -187,6 +237,29 @@ export default function App(): React.JSX.Element {
     await refreshProjects()
   }, [activeId, refreshProjects, resetDocState])
 
+  useEffect(() => {
+    const el = mainRef.current
+    if (!el || !activeId || !docPath) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const onScroll = (): void => {
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        const headings = Array.from(el.querySelectorAll<HTMLElement>('h1[id], h2[id], h3[id]'))
+          .map((heading) => ({ id: heading.id, top: heading.offsetTop }))
+        const headingId = pickAnchor(headings, el.scrollTop)
+        sessionRef.current.lastProjectId = activeId
+        sessionRef.current.perProject[activeId] = { docPath, headingId }
+        saveSession(sessionRef.current)
+      }, 250)
+    }
+    el.addEventListener('scroll', onScroll)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      if (timer) clearTimeout(timer)
+    }
+  }, [activeId, docPath])
+
   const docTitle = docPath ? findDocTitle(tree, docPath) : null
   const manageActive = view === 'manage'
 
@@ -216,7 +289,7 @@ export default function App(): React.JSX.Element {
             onOpenResult={openResult}
           />
         )}
-        <main className="content" data-theme={docTheme}>
+        <main className="content" data-theme={docTheme} ref={mainRef}>
           <div className="content-inner">
             {manageActive ? (
               <ManageProjects
@@ -235,6 +308,7 @@ export default function App(): React.JSX.Element {
                 docPath={docPath}
                 scrollToId={scrollToId}
                 scrollNonce={scrollNonce}
+                restoreHeadingId={restoreHeadingId}
                 onToc={setToc}
                 onStats={setStats}
               />

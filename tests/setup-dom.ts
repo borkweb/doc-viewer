@@ -49,6 +49,13 @@ for (const key of [
   if (key in win) g[key] = win[key]
 }
 
+if (!g.CSS) {
+  g.CSS = { escape: (value: string) => String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&') }
+}
+if (!dom.window.HTMLElement.prototype.scrollIntoView) {
+  dom.window.HTMLElement.prototype.scrollIntoView = () => {}
+}
+
 // `window` should point at the jsdom window object itself.
 g.window = dom.window
 
