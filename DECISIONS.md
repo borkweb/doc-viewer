@@ -90,7 +90,7 @@ Adopted must-fix bugs (from the deep review — straight defects, folded into th
 - **MF5 (E3.3)** launch/restore effect double-fires under React.StrictMode (dev) → guard with a `didRunRef` latch so restore runs once (also defuses MF1's dev-time trigger).
 - Cheap nice-to-haves folded: lazy `useState(loadSession)`; destructure palette `useMemo` deps. (Jump-vs-restore precedence + watcher-error surfacing noted as acceptable v1.)
 
-_Per-slice build verdicts (Codex offload) append below as they land._
+**Build & verdict (Codex offload, architect-judged 2026-06-14):** implementation offloaded to a Codex builder, slices E3 → E4 → E2 (15 commits, contract-freeze base). Architect re-ran every frozen gate RAW: `bun test` 166 pass / 0 fail, `bun run typecheck` exit 0, `bunx electron-vite build` exit 0; spot-checked the council invariants in code: MF1 generation token gates `selectLocal`'s `active=` write (projectService.ts:115-128), MF2 `stopWatch()` on window `'closed'`, MF3 `releaseIfActive(id)` in `projects:remove`, MF4 palette `onOpenDoc`/`onSwitchRef` call `setView('docs')`, MF5 `didRunRef` launch latch. Disagreements D1 (contract-freeze commit) / D2 (keep the generation token module-private — correct; the "export a token" wording was loose) / D3 (handoff CLI path) all ACCEPTED. G5 transiently failed because an out-of-band Plan 5 docs commit polluted the branch; the builder backed up the history and rebased to slice-purity, so G5 passed on re-judge. **Verdict: ACCEPT.** Merged to `main` and pushed.
 
 ---
 
