@@ -113,4 +113,15 @@ Both councils converged on a **preset-first theme library** built on a token-ove
 
 **Sequencing:** Plan 5's `themeId` widening (D5-3) touches `src/shared/types.ts` / `src/renderer/src/App.tsx` / `ManageProjects.tsx` — files Plan 4 is concurrently modifying. Plan 5 builds **after Plan 4 merges**; its implementation plan reconciles against post-Plan-4 code.
 
-_Design spec, design-review, implementation plan, deep-review, and build verdict append below as they land._
+### Theme-gallery design review (resolved via dual council, 2026-06-14)
+
+Design review hardened the gallery spec (IA/2×2 grid, token-rendered swatches, states, motion, keyboard/a11y, verbatim copy) and surfaced four UX forks. **Both councils unanimously backed all four leads**, holding to one principle: *distinctiveness comes from surfaces, not from spending the single cobalt accent.*
+
+| # | Decision | Call | Why |
+|---|----------|------|-----|
+| D5-9 | TF-1 Live-preview scope | **(b) Swatch-only preview + commit-to-apply** (token-faithful swatches keep an immersive option open later) | The Settings modal occludes most of the app, so whole-app hover recolor buys little visible payoff while flickering the grid; the real-token swatch is already a truthful preview. |
+| D5-10 | TF-2 4th preset identity | **(a) Graphite** — neutral charcoal distinct-surface palette, cobalt accent retained | Recognition rides surface shifts; Forest smuggles in a second hue that competes with the single interactive accent and collides with status-green. |
+| D5-11 | TF-3 Per-project control form | **(a) `<select>` (Use global + theme list) + a small swatch chip beside the selected option** | EditProjectModal is assignment altitude, not browse; a mini-gallery duplicates the global picker and dominates a dense form. The chip closes the recognition gap cheaply. |
+| D5-12 | TF-4 Default card | **(a) One card, split swatch, labeled "Default — mixed" + tooltip** | The default is genuinely one pinned mixed dark-chrome/light-document theme; two cards would label one real theme as two non-independent choices and inflate the set. |
+
+_Implementation plan, deep-review, and build verdict append below as they land._
