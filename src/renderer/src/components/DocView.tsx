@@ -3,6 +3,7 @@ import type { DocKind } from '@shared/types'
 import {
   renderMarkdown,
   buildToc,
+  highlightCode,
   enhanceDiagrams,
   computeDocStats,
   type TocEntry,
@@ -72,6 +73,7 @@ export default function DocView({
     }
     const toc = buildToc(container)
     onToc?.(toc)
+    highlightCode(container)
     void enhanceDiagrams(container).then(() => {
       onStats?.(computeDocStats(container))
       doScroll()
