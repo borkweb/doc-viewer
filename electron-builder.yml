@@ -1,0 +1,11 @@
+appId: com.borkweb.docviewer
+productName: Doc Viewer
+directories:
+  output: dist
+files:
+  - out/**/*
+  - package.json
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+  identity: null   # unsigned (2A)
