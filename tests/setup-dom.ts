@@ -43,7 +43,8 @@ for (const key of [
   'MutationObserver',
   'getComputedStyle',
   'requestAnimationFrame',
-  'cancelAnimationFrame'
+  'cancelAnimationFrame',
+  'CSS'
 ]) {
   if (key in win) g[key] = win[key]
 }
