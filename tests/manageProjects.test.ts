@@ -370,4 +370,18 @@ describe('ManageProjects', () => {
 
     expect(doneCount).toBe(1)
   })
+
+  it('shows the 0-doc note when a subpath rebuild finds no docs', async () => {
+    await renderManage(propsWith([githubProject()], {
+      onSetDocsSubpath: async () => ({ docCount: 0 })
+    }))
+
+    await click(container.querySelector('[data-row="github-1"] [data-action="edit-subpath"]')!)
+    const input = container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]') as HTMLInputElement
+    await setInput(input, 'empty')
+    await click(container.querySelector('[data-row="github-1"] [data-action="commit-subpath"]')!)
+
+    expect(container.textContent).toContain('No docs found at that subpath.')
+    expect(container.textContent).not.toContain('Another project already uses')
+  })
 })

@@ -124,4 +124,14 @@ describe('setDocsSubpath', () => {
     await first
     expect(builds).toBe(1)
   })
+
+  it('clearing the subpath (back to root) re-includes the root README', async () => {
+    const spawnFn = repoSpawn({ 'README.md': '# Root', 'pkg/notes.md': '# Notes' })
+    const p = await addGithubProject('o/r', { ref: 'main', docsSubpath: 'pkg' }, () => {}, { spawnFn })
+    const res = await setDocsSubpath(p.id, '', () => {}, { spawnFn })
+    expect(res.docCount).toBe(2)
+    expect(((await getProject(p.id)) as GithubProject).docsSubpath).toBeUndefined()
+    await selectProject(p.id)
+    expect((await getDoc(p.id, 'README.md')).content).toContain('# Root')
+  })
 })
