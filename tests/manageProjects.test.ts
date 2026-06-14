@@ -258,7 +258,7 @@ describe('ManageProjects', () => {
     })
 
     expect(container.querySelector('[data-row="github-1"]')?.textContent).toContain('No docs found at that subpath.')
-    expect(container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]')).toBeNull()
+    expect(container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]')).toBeTruthy()
   })
 
   it('does not render docs subpath controls for local projects', async () => {
@@ -383,5 +383,6 @@ describe('ManageProjects', () => {
 
     expect(container.textContent).toContain('No docs found at that subpath.')
     expect(container.textContent).not.toContain('Another project already uses')
+    expect(container.querySelector('[data-row="github-1"] [data-field="docsSubpath"]')).toBeTruthy()
   })
 })

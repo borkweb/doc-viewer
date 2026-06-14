@@ -137,7 +137,7 @@ export default function ManageProjects(props: ManageProjectsProps): React.JSX.El
     })
     try {
       const result = await props.onSetDocsSubpath(project.id, nextSubpath)
-      setSubpathId(null)
+      if (result.docCount > 0) setSubpathId(null)
       setSubpathMessages((current) => {
         const next = { ...current }
         if (result.docCount === 0) next[project.id] = 'No docs found at that subpath.'
