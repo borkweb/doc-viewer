@@ -27,3 +27,21 @@ describe('search index', () => {
     expect(runSearch(idx, 'zzzznomatch')).toEqual([])
   })
 })
+
+import { serializeIndex, loadIndex } from '../src/main/pipeline/index'
+
+describe('index serialize/load', () => {
+  it('roundtrips an index and reproduces search + snippet', () => {
+    const sections2: Section[] = [
+      { id: 'a.md#', docPath: 'a.md', docTitle: 'Alpha', headingId: '', headingText: '', depth: 0, text: 'install the widget' },
+      { id: 'a.md#setup', docPath: 'a.md', docTitle: 'Alpha', headingId: 'setup', headingText: 'Setup', depth: 2, text: 'Setup run the setup script' }
+    ]
+    const original = buildIndex(sections2)
+    const json = serializeIndex(original)
+    const restored = loadIndex(json, sections2)
+    const live = runSearch(original, 'setup')
+    const cached = runSearch(restored, 'setup')
+    expect(cached.map((r) => r.headingId)).toEqual(live.map((r) => r.headingId))
+    expect(cached[0].snippet.length).toBeGreaterThan(0) // snippet needs the rebuilt section lookup
+  })
+})
