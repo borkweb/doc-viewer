@@ -1,11 +1,11 @@
 import { ipcMain, dialog, shell } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import type { BuildProgress } from '@shared/types'
+import type { BuildProgress, ThemeChoice } from '@shared/types'
 import { listProjects, addLocalProject, removeProject, updateProject } from './registry'
 import {
   selectProject, getDoc, search,
   addGithubProject, rebuildProject, cancelBuild,
-  listRefs, switchRef, addRef, removeRef
+  listRefs, switchRef, addRef, removeRef, setDocsSubpath
 } from './projectService'
 import { purgeProjectCache } from './cache'
 
@@ -29,10 +29,13 @@ export function registerIpc(): void {
   })
   ipcMain.handle(
     'projects:updateSettings',
-    (_e, id: string, patch: { name?: string; docsSubpath?: string; themeId?: string }) =>
+    (_e, id: string, patch: { name?: string; docsSubpath?: string; themeId?: ThemeChoice }) =>
       updateProject(id, patch)
   )
   ipcMain.handle('projects:rebuild', (e, id: string) => rebuildProject(id, progressTo(e)))
+  ipcMain.handle('projects:setDocsSubpath', (e, id: string, subpath: string) =>
+    setDocsSubpath(id, subpath, progressTo(e))
+  )
   ipcMain.handle('projects:cancelBuild', (_e, id: string) => cancelBuild(id))
   ipcMain.handle('projects:listRefs', (_e, id: string) => listRefs(id))
   ipcMain.handle('projects:switchRef', (e, id: string, ref: string) =>

@@ -3,7 +3,10 @@
 // carries a data-theme attribute resolved from one of these choices; 'system'
 // follows the OS via prefers-color-scheme. Persisted in localStorage.
 
-export type ThemeChoice = 'dark' | 'light' | 'system'
+import type { ThemeChoice } from '@shared/types'
+import { THEME_CHOICES } from '@shared/types'
+
+export type { ThemeChoice }
 export type ResolvedTheme = 'dark' | 'light'
 
 export interface ThemeSettings {
@@ -14,7 +17,7 @@ export interface ThemeSettings {
 export const DEFAULT_THEME: ThemeSettings = { chrome: 'dark', document: 'light' }
 
 const STORAGE_KEY = 'curator.theme'
-const CHOICES: ThemeChoice[] = ['dark', 'light', 'system']
+const CHOICES: readonly ThemeChoice[] = THEME_CHOICES
 
 function isChoice(v: unknown): v is ThemeChoice {
   return typeof v === 'string' && (CHOICES as string[]).includes(v)

@@ -6,7 +6,8 @@ import type {
 } from '@shared/types'
 import {
   getProject, updateProject, removeProject as registryRemoveProject,
-  addGithubProject as registryAddGithub, recordRef, setCurrentRef, removeRefRecord
+  addGithubProject as registryAddGithub, recordRef, setCurrentRef, removeRefRecord,
+  findGithubByIdentity
 } from './registry'
 import { discover } from './pipeline/discover'
 import { parseMarkdown, parseHtml } from './pipeline/parse'
@@ -189,6 +190,66 @@ export async function rebuildProject(
   } finally {
     inFlight.delete(id)
   }
+}
+
+// ── docsSubpath change (github) ─────────────────────────────────────────────
+export async function setDocsSubpath(
+  id: string,
+  subpath: string,
+  onProgress: (p: BuildProgress) => void = noProgress,
+  deps: BuildDeps = {}
+): Promise<{ tree: NavNode[]; docCount: number }> {
+  const project = await getProject(id)
+  if (!project) throw new Error(`Project not found: ${id}`)
+  if (project.type !== 'github') throw new Error(`Not a github project: ${id}`)
+
+  if (inFlight.has(id)) {
+    const err = new Error('Build already in progress') as Error & { code?: string }
+    err.code = 'build-in-progress'
+    throw err
+  }
+
+  const present = async (ref: string): Promise<{ tree: NavNode[]; docCount: number }> => {
+    const current = await getProject(id)
+    if (!current || current.type !== 'github') throw new Error(`Not a github project: ${id}`)
+    if (active?.id === id) return loadGithubRef(current, ref, onProgress, deps)
+    const cache = await readCache(id, ref)
+    if (!cache) throw new Error(`Cache unavailable after build: ${id}@${ref}`)
+    return { tree: cache.manifest.tree, docCount: cache.manifest.docCount }
+  }
+
+  const normalized = subpath.trim() || undefined
+  if ((project.docsSubpath ?? undefined) === normalized) return present(project.currentRef)
+
+  const collision = await findGithubByIdentity(project.source, normalized, id)
+  if (collision) {
+    const err = new Error(
+      `docsSubpath collision: another project already uses ${project.source} + ${normalized ?? '(root)'}`
+    ) as Error & { code?: string }
+    err.code = 'collision'
+    throw err
+  }
+
+  await updateProject(id, { docsSubpath: normalized })
+  await purgeProjectCache(id)
+  const updated = (await getProject(id)) as GithubProject
+
+  const controller = new AbortController()
+  inFlight.set(id, controller)
+  try {
+    const { ref, docCount } = await buildGithubRef(
+      updated,
+      updated.currentRef,
+      onProgress,
+      controller.signal,
+      deps
+    )
+    await recordRef(id, ref, docCount)
+  } finally {
+    inFlight.delete(id)
+  }
+
+  return present(updated.currentRef)
 }
 
 // ── reads (type-branched) ───────────────────────────────────────────────────
