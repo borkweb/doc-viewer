@@ -518,23 +518,30 @@ body {
   display: flex; align-items: center; gap: var(--space-2);
 }
 
-/* The list itself: a single bordered, rounded card with divided rows. */
+/* The list itself: borderless rows divided by a thin bottom rule. */
 .project-list {
   list-style: none; margin: 0; padding: 0;
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--surface); overflow: hidden;
 }
 .project-item {
   display: flex; align-items: center; gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-sm);
   border-bottom: 1px solid var(--border);
   transition: background var(--transition);
 }
 .project-item:last-child { border-bottom: 0; }
-.project-item:hover { background: var(--surface-alt); }
+.project-item:nth-child(even) { background: color-mix(in srgb, var(--surface-alt) 45%, transparent); }
+
+.project-info {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.project-info-head {
+  display: flex; align-items: center; gap: var(--space-2); min-width: 0;
+}
 
 .project-name {
-  flex: 0 1 auto; min-width: 0; max-width: 280px;
+  flex: 0 1 auto; max-width: 100%;
   padding: 0; border: 0; background: none; font: inherit;
   color: var(--fg); font-weight: var(--weight-semibold);
   text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -547,8 +554,9 @@ body {
 .project-name:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .project-item code.project-source {
-  flex: 1 1 auto; min-width: 0; color: var(--muted); font-family: var(--font-mono);
-  font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; color: var(--muted); font-family: var(--font-mono);
+  font-size: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: none; border: 0; padding: 0;
 }
 .project-item [data-chip] {
   flex: 0 0 auto; padding: 1px 6px; border-radius: var(--radius-sm);
@@ -566,7 +574,8 @@ body {
   flex: 0 0 auto; margin-left: var(--space-2);
   display: flex; align-items: center; gap: var(--space-1);
 }
-.project-actions .icon-button.danger:hover { color: var(--danger, #e5484d); }
+.project-actions .icon-button.danger { color: var(--danger, #e5484d); }
+.project-actions .icon-button.danger:hover { color: var(--danger, #e5484d); opacity: 0.8; }
 .project-item .delete-confirmation {
   display: inline-flex; align-items: center; gap: var(--space-1);
   color: var(--fg); font-size: var(--text-sm);

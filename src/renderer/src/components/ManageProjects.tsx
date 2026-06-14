@@ -92,19 +92,23 @@ export default function ManageProjects(props: ManageProjectsProps): React.JSX.El
 
             return (
               <li className="project-item" data-row={project.id} key={project.id}>
-                <button
-                  className="project-name"
-                  data-action="select"
-                  onClick={() => props.onSelect(project.id)}
-                  disabled={building}
-                >
-                  {project.name}
-                </button>
-                <code className="project-source" title={project.source}>
-                  {middleTruncate(project.source)}
-                </code>
-                <span data-chip>{project.type}</span>
-                <span className="project-count">{docCountOf(project)} docs</span>
+                <div className="project-info">
+                  <div className="project-info-head">
+                    <button
+                      className="project-name"
+                      data-action="select"
+                      onClick={() => props.onSelect(project.id)}
+                      disabled={building}
+                    >
+                      {project.name}
+                    </button>
+                    <span data-chip>{project.type}</span>
+                    <span className="project-count">{docCountOf(project)} docs</span>
+                  </div>
+                  <code className="project-source" title={project.source}>
+                    {middleTruncate(project.source)}
+                  </code>
+                </div>
 
                 {progressText && (
                   <span className="project-status" role="status">{progressText}</span>
