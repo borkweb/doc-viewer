@@ -43,11 +43,10 @@ function runGit(
     child.stderr?.on('data', (d) => { stderr += String(d) })
 
     const onAbort = (): void => { child.kill('SIGTERM') }
-    if (signal) {
-      if (signal.aborted) child.kill('SIGTERM')
-      else signal.addEventListener('abort', onAbort)
-    }
 
+    // Register terminal listeners BEFORE reacting to the signal: an already-aborted
+    // signal kills the child synchronously, and a fast-killing child can emit
+    // 'close' in the same tick — that event must not be lost.
     child.on('error', (err) => {
       signal?.removeEventListener('abort', onAbort)
       reject(err)
@@ -61,6 +60,11 @@ function runGit(
       if (code === 0) resolve({ stdout })
       else reject(new Error(`git ${args[0]} failed (exit ${code ?? 'null'}): ${stderr.trim()}`))
     })
+
+    if (signal) {
+      if (signal.aborted) child.kill('SIGTERM')
+      else signal.addEventListener('abort', onAbort)
+    }
   })
 }
 
