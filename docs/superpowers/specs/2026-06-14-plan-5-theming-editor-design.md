@@ -80,6 +80,20 @@ System}` to `{Use global} + the theme list`.
 - *D5-6:* built-in-only v1 persists in existing stores; no new theme-CRUD IPC.
 - *D5-7:* a theme gallery replaces the two Settings segmented controls; per-region
   advanced override deferred.
+- *D5-9:* **Live preview = swatch-only + commit-to-apply.** The gallery does **not**
+  recolor the whole running app on hover/focus; the preview surface is the **card
+  swatch**, which is **token-faithful** (rendered from the theme's real resolved token
+  values). Only a click/Enter/Space **commits** and recolors the app.
+- *D5-10:* the 4th preset is **Graphite** — a neutral **charcoal distinct-surface**
+  palette that **retains the cobalt accent** (not Forest, not accent-only). It
+  overrides the **bg / surface / surface-alt / border / ink** token groups and leaves
+  the `--accent*` family cobalt.
+- *D5-11:* the per-project theme control is a **`<select>`** (`Use global` + the theme
+  list) **inside `EditProjectModal`**, plus a **small token-faithful swatch chip beside
+  the selected option** — not a mini-gallery.
+- *D5-12:* the **Default** theme is **one card** with a **split swatch**, labeled
+  **"Default — mixed"** with a **tooltip** explaining its pinned mixed dark-chrome /
+  light-document look.
 
 ## What already exists (reuse, don't reinvent)
 
@@ -251,15 +265,20 @@ Hex values may reference the design system or be finalized in implementation; th
 
 #### Default — `base: { chrome: 'dark', document: 'light' }`, `variants: { dark: {}, light: {} }`
 
-- **Concept:** today's exact look — **dark cobalt chrome + light document** — carried
-  by one theme so "nothing regresses" (D5-4/D5-7). **Overrides: none** (both variants
-  empty); it is pure passthrough to the existing `[data-theme="dark"]` /
-  `[data-theme="light"]` base sets. The chrome resolves dark, the document resolves
-  light, exactly as `DEFAULT_THEME = { chrome: 'dark', document: 'light' }` does
-  today.
+- **Concept (LOCKED, D5-12):** today's exact look — **dark cobalt chrome + light
+  document** — carried by **one** theme so "nothing regresses" (D5-4/D5-7/D5-12).
+  **Overrides: none** (both variants empty); it is pure passthrough to the existing
+  `[data-theme="dark"]` / `[data-theme="light"]` base sets. The chrome resolves dark,
+  the document resolves light, exactly as the old `DEFAULT_THEME = { chrome: 'dark',
+  document: 'light' }` constant did.
 - **Token groups overridden:** **none.** Default *is* the base.
-- *(Residual: see Open questions — whether Default should instead follow OS uniformly.
-  v1 pins the mixed look to guarantee no regression.)*
+- **Gallery presentation (D5-12):** Default ships as **one card** with a **split
+  swatch** (dark-chrome half | light-document half), labeled **"Default — mixed"** with
+  a **tooltip** (`title` / `aria-description`) explaining the pinned mixed look. The
+  canonical registry `name` stays `Default` (used verbatim in the per-project select);
+  the `— mixed` qualifier and tooltip are a **gallery-card affordance for Default only**.
+  v1 **pins** the mixed look to guarantee no regression; per-region OS-following is the
+  deferred advanced override (D5-7).
 
 #### Sepia — `base: 'light'` (pinned warm; `variants: { light: {…} }` only)
 
@@ -290,10 +309,12 @@ Hex values may reference the design system or be finalized in implementation; th
 
 #### Graphite — `base: 'dark'` (distinct-surface; `variants: { dark: {…} }` only)
 
-- **Concept:** the **distinct-surface** identity (D5-4 — *not* accent-only). Shifts the
-  whole surface stack off cobalt-blue toward **neutral charcoal/graphite**, keeping
-  the cobalt accent as the single pop of color so it reads as a clearly different app
-  skin. Pinned dark.
+- **Concept (LOCKED, D5-10):** the **distinct-surface** identity (D5-4/D5-10 — *not*
+  Forest, *not* accent-only). Shifts the whole surface stack off cobalt-blue toward
+  **neutral charcoal/graphite**, keeping the cobalt accent as the single pop of color so
+  it reads as a clearly different app skin. Pinned dark. **Overridden token groups are
+  fixed:** **bg/surface group**, **surface-alt** (part of that group), **border group**,
+  and the **ink-on-graphite** tokens — with the **`--accent*` family left cobalt**.
 - **Token groups overridden (coherent groups):**
   - **bg/surface group** (the defining move, together): `--bg --surface --surface-alt
     --surface-raised --code-bg --table-head --diagram-bg` → neutral graphite grays
@@ -303,6 +324,24 @@ Hex values may reference the design system or be finalized in implementation; th
     new surfaces.
   - **accent family: left untouched** — cobalt `--accent*` stays, intentionally, as
     the recognizable highlight against the neutral field.
+
+#### Swatch recognition at card size (per D5-4: read the surface, not the accent)
+
+Each preset must be distinguishable in the ~200×40px swatch band **before** the name
+is read. Validated:
+
+| Preset | Swatch reads as | Distinct from neighbors by |
+|--------|-----------------|----------------------------|
+| **Default** | split band — **dark** cobalt-black/slate left, **white/cobalt-gray** right, hairline divider | the only **two-tone** swatch; signals the mixed look |
+| **Sepia** | warm **cream → tan** chips, amber accent chip, brown "Aa" | the only **warm-hued** band — unmistakable beside three cool/neutral ones |
+| **High contrast** | near-**pure black or pure white** chips (per OS mode), bold accent, max-contrast "Aa" | extreme value range — chips read as black/white, not slate |
+| **Graphite** | neutral **charcoal → graphite** grays, **cobalt** accent chip retained | neutral (no blue cast) surface vs Default's cobalt-tinted dark; the retained cobalt accent confirms it's a sibling skin, not Sepia |
+
+The two cool-dark presets (Default-dark-half, Graphite) are the closest pair; they
+separate on **hue** (cobalt-tinted vs neutral-gray surface) and on Default being
+two-tone. If that pairing proves too subtle at card size in implementation, nudge
+Graphite's surfaces a half-step cooler-neutral — never lean on the accent to
+differentiate (that would violate D5-4).
 
 ### 6. Application + per-project resolution precedence
 
@@ -399,43 +438,89 @@ theme; per-project overrides are set in Manage Projects.
 **Layout — a card gallery inside the existing `.modal`:**
 
 ```
-┌─ Settings ───────────────────────────────────────────── ✕ ─┐
-│  Theme                                                      │  ← .section-label
-│  Applies to the whole app. Override per project in Manage.  │  ← hint copy
-│                                                             │
-│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐    │
-│  │ ▍▍ ▍▍ Aa  │ │ ▍▍▍▍      │ │ ▍▍▍▍      │ │ ▍▍▍▍      │    │
-│  │ ▍▍ ▍ ▍    │ │           │ │           │ │           │    │
-│  │ Default ✓ │ │ Sepia     │ │ High con… │ │ Graphite  │    │
-│  └───────────┘ └───────────┘ └───────────┘ └───────────┘    │
-│   (selected)                                                │
-└─────────────────────────────────────────────────────────────┘
+┌─ Settings ──────────────────────────────────────── ✕ ─┐
+│  Theme                                                 │  ← .section-label
+│  Applies to the whole app. Override per project        │  ← .section-hint (muted)
+│  in Manage Projects.                                   │
+│                                                        │
+│  ┌──────────────────────┐ ┌──────────────────────┐    │
+│  │ ████▏░░░░  Aa         │ │ ▓▓▓▒▒▒░░░  Aa         │    │ ← swatch: bg│surface│
+│  │                      │ │                      │    │   surface-alt + accent
+│  │ Default            ✓ │ │ Sepia                │    │   tick, "Aa" in --fg
+│  │ Cobalt dark + light  │ │ Warm paper, easy…    │    │ ← name + descriptor
+│  └━━━━━━━━━━━━━━━━━━━━━━┘ └──────────────────────┘    │   (selected = accent ring)
+│  ┌──────────────────────┐ ┌──────────────────────┐    │
+│  │ ██▏░░  ▕██▏░░  Aa     │ │ ▓▓▓▒▒░░░  Aa          │    │
+│  │                      │ │                      │    │
+│  │ High contrast        │ │ Graphite             │    │
+│  │ Maximum legibility   │ │ Neutral graphite…    │    │
+│  └──────────────────────┘ └──────────────────────┘    │
+└────────────────────────────────────────────────────────┘
 ```
 
-- **Cards in a responsive grid** (`repeat(auto-fill, minmax(~150px, 1fr))`) inside the
-  modal body. The modal **widens** from today's ~440px to comfortably hold 2 columns
-  (~`min(560px, 92vw)`).
-- **Swatch preview** per card: a small band of color chips drawn **from the theme's
-  own resolved tokens** — `--bg`, `--surface`, `--surface-alt`, `--accent`, and an
-  `--fg` "Aa" sample — so the card shows the actual palette, not a static thumbnail.
-  For **Default**, the swatch shows the split (dark chrome chip + light document chip)
-  to telegraph the mixed look.
-- **Card body:** theme `name` + a one-line muted descriptor.
-- **Selected state:** the active card carries an `--accent` ring (reuse
-  `--accent-ring`) + a `fa-check`, mirroring `.segmented .active` / `.tree-item.active`
-  treatment.
-- **Live preview on hover/select (verbatim from D5-7 intent):** **hovering** a card
-  previews that theme on the live app behind the modal (App applies the hovered
-  theme's resolution transiently); **moving off** without clicking reverts to the
-  committed theme; **clicking** commits it (writes `{ themeId }` via
-  `saveThemeSettings`). This reuses the same `applyTheme` path — preview is just a
-  transient `effectiveId`. Gated by `prefers-reduced-motion`-independent logic (it's a
-  color swap, not motion), but the **transient apply is suppressed entirely** if the
-  user prefers reduced motion is **not** required — color preview is allowed; only the
-  card-entrance animation respects reduced motion.
-- **Keyboard:** the gallery is a `role="radiogroup"`; cards are `role="radio"`,
-  arrow-key navigable, Enter/Space commits; focus rings via `--accent-ring`. Hover
-  preview has a focus equivalent (focusing a card previews it).
+- **Fixed 2×2 grid** (`repeat(auto-fill, minmax(200px, 1fr))`, `gap: var(--space-3)`)
+  inside the modal body. v1 has exactly **4** presets, so the grid is balanced 2×2 and
+  reflows to a single column under ~440px; `auto-fill` keeps it correct if a 5th preset
+  ever lands. The modal **widens** from today's `440px` to `width: min(520px, 92vw)` to
+  hold two ~220px columns with comfortable gutters. (Earlier draft said "4 in a row /
+  560px" — corrected: a 4-wide row forces an unbalanced, over-wide modal for a fixed
+  set of four.)
+- **Swatch preview** per card: a horizontal band rendered **from the theme's own
+  resolved tokens** — contiguous chips for `--bg → --surface → --surface-alt`, a single
+  `--accent` chip set apart, and an "Aa" glyph painted in `--fg` over `--bg`. This is
+  the **recognition surface**: per D5-4 the eye reads the *background/surface* shift,
+  not the accent, so the bg/surface chips dominate the band width and the accent is a
+  small accent — never the whole swatch. Swatch height ~40px; it must read at card size
+  without a thumbnail.
+- **Default's split swatch:** Default alone renders a **two-half** band — left half
+  shows its dark chrome chips, right half its light document chips, divided by a hairline
+  — to telegraph the mixed dark-chrome / light-document look its per-region `base`
+  produces. The "Aa" sits on the light (document) half.
+- **Card body:** theme `name` (in `--fg`, `--weight-medium`) + a one-line `--muted`
+  descriptor. Two lines; never wraps past two.
+- **Selected state:** the committed card carries an `--accent` ring
+  (`box-shadow: 0 0 0 2px var(--accent-ring)`) + a small `fa-check` in `--accent` at the
+  name row, mirroring `.segmented .active` / `.tree-item.active` (accent text + soft
+  fill). Exactly **one** card is selected at any time.
+- **Hover / focus (idle, non-committing):** a card lifts to `--surface-alt` with a
+  `--border-strong` edge — the standard `.tree-item:hover` affordance. This is a
+  **pointer/focus affordance only**: it does **not** recolor the running app (D5-9).
+
+**Interaction states & live preview (LOCKED — swatch-only + commit-to-apply, D5-9)**
+
+The gallery **does not recolor the whole running app on hover/focus.** The preview
+surface is the **card swatch itself** — token-faithful (rendered from each theme's real
+resolved token values), so the user reads the actual palette without any transient
+whole-app repaint. Only a **commit** (click / `Enter` / `Space`) recolors the app.
+
+| State | Trigger | Behavior |
+|-------|---------|----------|
+| **Default** | open Settings | the card matching `themeSettings.themeId` is selected (accent ring + check); it also holds initial keyboard focus (roving tabindex). |
+| **Hover / focus** | pointer over / `Tab` to a card | card shows the idle hover/focus affordance (above). **No whole-app recolor** — the token-faithful swatch already shows the real palette. |
+| **Selecting (commit)** | click, `Enter`, or `Space` on a card | `saveThemeSettings({ themeId })` → App resolution effect re-applies to `.app-shell` + `.content`. The selected ring moves to the committed card. This is the **only** path that recolors the app. |
+| **Escape** | `Esc` closes Settings | the existing Settings handler closes the modal. There is **no uncommitted preview to revert** — nothing was applied on hover. |
+
+- **No transient `effectiveId`.** Because preview is swatch-only, App never drives a
+  hover/focus preview through `applyTheme`; the commit path is the single entry point,
+  so a swatch and the committed result are painted from the **same** resolved tokens and
+  match exactly. (Whole-app hover preview was considered and **rejected** for v1: the
+  modal covers most of the app so only edges would recolor, and rapid hover across the
+  2×2 grid would flicker — D5-9.)
+- **Motion:** theme swaps are a **color cross-fade only**, carried by the existing
+  token `--transition` (120ms) / `--transition-slow` (220ms) on color properties —
+  cap the theme transition at **≤200ms**, no layout/transform animation. Card entrance
+  (if any) uses `--transition-slow`. **`prefers-reduced-motion: reduce` → instant**:
+  no cross-fade, no entrance; the swatch and committed state still update (color is
+  information, not decoration — only the *animation* is suppressed). This replaces the
+  prior garbled note that conflated reduced-motion with disabling preview.
+- **Keyboard & focus:** the gallery is `role="radiogroup"` (`aria-label="Theme"`);
+  cards are `role="radio"` with **roving tabindex** (only the selected card is in the
+  tab order). Arrow keys move selection-focus across the grid (Left/Right within a row,
+  Up/Down across rows, **wrapping**); `Home`/`End` jump to first/last; `Enter`/`Space`
+  commit; focus ring via `--accent-ring` (`:focus-visible`, reusing the
+  `.segmented button:focus-visible` 3px ring). Focusing a card moves the roving
+  selection-focus and shows the idle focus affordance only — it does **not** recolor the
+  app (swatch-only preview, D5-9). On close, focus returns to the Settings trigger.
 
 **Verbatim copy (Settings):**
 
@@ -443,11 +528,34 @@ theme; per-project overrides are set in Manage Projects.
 |---------|------|
 | Section label | `Theme` |
 | Section hint | `Applies to the whole app. Override per project in Manage Projects.` |
-| Card — Default | `Default` · descriptor `Cobalt dark chrome, light document` |
+| Card — Default | label `Default — mixed` · descriptor `Cobalt dark chrome, light document` · tooltip `Pinned: dark chrome with a light document — today's default look` |
 | Card — Sepia | `Sepia` · descriptor `Warm paper, easy on the eyes` |
 | Card — High contrast | `High contrast` · descriptor `Maximum legibility` |
 | Card — Graphite | `Graphite` · descriptor `Neutral graphite surfaces` |
 | Selected aria | `{name} (selected)` |
+| Live-preview affordance | **none** — preview is **swatch-only** (D5-9): the token-faithful card swatch is the preview; hover/focus never recolors the app. No "Previewing…" toast/label and no per-card "Apply" button. Only a commit recolors. |
+
+Sentence case throughout; no "skin" / "style" / marketing verbs. Descriptors are a
+single clause, ≤ ~28 chars so they don't wrap past one line in the card.
+
+### Accessibility & touch targets
+
+- **Semantics:** `radiogroup` / `radio` (single-select, exactly one active) is the
+  correct mapping — not `listbox`/`option` (which implies a popup) and not a set of
+  independent checkboxes. Screen readers announce "Theme, radio group" then
+  "{name}, radio, selected, n of 4".
+- **Contrast (AA target):** every preset is validated so **body text ≥ WCAG AA (4.5:1)**
+  on its surfaces and **UI text / accents ≥ 3:1**; **High contrast** targets **AAA
+  (7:1)**. The swatch is decorative (the name carries meaning), so the swatch itself
+  needs no contrast guarantee, but the **"Aa" sample must clear AA on its chip** so the
+  preview doesn't misrepresent legibility. Validation is a build/authoring invariant
+  (presets are source), surfaced in `tests/theme.test.ts` as a documented check list.
+- **Targets:** each card is the hit target (full card clickable), comfortably ≥ **44×44px**
+  on desktop; the swatch + two text lines already exceed this. The per-project
+  `<select>` keeps the native control's accessible target.
+- **Focus management:** roving tabindex (above); focus ring never suppressed without a
+  visible `:focus-visible` replacement; on commit, focus stays on the chosen card; on
+  modal close, focus returns to the Settings trigger button.
 
 ### Manage Projects — generalized per-project select
 
@@ -466,11 +574,33 @@ const THEME_OPTIONS = [
   value sets that registry id.
 - The field label changes from **"Document theme"** to **"Theme"** (it now governs the
   whole app for that project, chrome + document — D5-5).
+- **Swatch chip beside the selected option (LOCKED, D5-11):** a **small token-faithful
+  swatch chip** sits **next to the `<select>`**, painted from the currently-selected
+  theme's real resolved tokens (a compact horizontal bg/surface/accent band, the same
+  recognition surface as the gallery swatch, at chip scale ~`28×16px`). When `Use
+  global` is selected the chip renders the **global theme's** swatch (so the user sees
+  what "use global" resolves to). The chip updates the instant the select changes. It is
+  a recognition aid only — **not** a mini-gallery, **not** clickable, and it does **not**
+  recolor the app (commit happens on Save → `updateProjectSettings`).
 - Commit path is unchanged: `onSetTheme(project.id, themeId | undefined)` →
   `updateProjectSettings(id, { themeId })` → `refreshProjects()`. When the edited
   project is active, the resolution effect re-applies instantly.
 - **Verbatim copy:** field label `Theme`; the "use global" option `Use global`; each
   built-in by `name`.
+- **Form — select + swatch chip, not a mini-gallery (LOCKED, D5-11):** the per-project
+  control stays a plain `.field` `<select>` paired with the swatch chip, *not* a second
+  copy of the gallery. Rationale: (1) the EditProjectModal is a **dense, multi-field
+  form** (Name, Theme, Docs subpath) where a card grid would dominate and unbalance it —
+  per D3-3, row density already won over a wide segmented control; (2) the global gallery
+  is the place to *browse* themes; the per-project control is a quick *assignment* of an
+  already-known theme; a select is the right altitude for assignment. The swatch chip
+  restores a **token-faithful preview of the selected theme** without the cost of a card
+  grid — the recognition aid the bare select lacked.
+- **Vocabulary parity with the gallery:** options use the **same display `name`s** as
+  the gallery cards (`Default`, `Sepia`, `High contrast`, `Graphite`), and the
+  null/inherit option reads **`Use global`** — matching the gallery's "Applies to the
+  whole app. Override per project…" framing so the two surfaces speak one language. The
+  legacy `{Global / Dark / Light / System}` vocabulary is fully retired.
 
 ### AI-slop guardrails
 
@@ -488,12 +618,14 @@ never "skin"/"style"). One interactive accent throughout.
 
 ```
 Settings gallery (renderer)
-  hover card  → App applies previewId via applyTheme (transient; revert on leave)
+  hover card  → swatch-only (D5-9): NO whole-app apply; the token-faithful swatch
+                  is the preview. Hover/focus only moves the roving selection.
   click card  → saveThemeSettings({ themeId }) → setThemeSettings → resolution effect
                   → applyTheme(.app-shell, …) + applyTheme(.content, …)
 
-Manage Projects → EditProjectModal select
-  pick theme  → onSetTheme(id, themeId|undefined)
+Manage Projects → EditProjectModal select + swatch chip
+  pick theme  → swatch chip repaints from the selected theme's tokens (no app recolor)
+  save        → onSetTheme(id, themeId|undefined)
                   → window.api.updateProjectSettings(id, { themeId })
                       → ipc.ts validates themeId ∈ registry (else drop) → registry.updateProject
                   → refreshProjects() → if id === activeId, resolution effect re-applies
@@ -516,8 +648,9 @@ App resolution effect  (deps: effectiveId, systemDark)
   to the base `data-theme` set). A pinned theme (single variant) thus always renders.
 - **Stale inline overrides on theme switch** → `applyTheme` `removeProperty`s every
   whitelisted token the new theme doesn't set, so no override leaks across a switch.
-- **Hover-preview never commits** → leaving a card without clicking reverts to the
-  committed `themeId`; closing Settings reverts any uncommitted preview.
+- **Hover/focus never recolors the app** (D5-9) → preview is swatch-only, so leaving a
+  card or closing Settings has nothing to revert; the app stays on the committed
+  `themeId` until a card is explicitly committed.
 - **localStorage unavailable / malformed** → `loadThemeSettings` returns `{ themeId:
   DEFAULT_THEME_ID }` (fail-soft, same precedent as today).
 - **No active project** → resolution uses `globalThemeId` (then Default); the gallery
@@ -549,11 +682,14 @@ App resolution effect  (deps: effectiveId, systemDark)
 **Renderer (jsdom, the `tests/addProjectModal.test.ts` harness):**
 - **Settings gallery:** renders one card per `THEME_LIST` entry with the selected card
   reflecting `themeSettings.themeId`; clicking a card calls `saveThemeSettings`/
-  `onChange` with that `{ themeId }`; the Default card shows the split swatch;
-  hover-preview applies then reverts without committing.
+  `onChange` with that `{ themeId }`; the Default card shows the split swatch and the
+  `Default — mixed` label; **hover/focus does NOT call `onChange`/apply** (swatch-only,
+  D5-9) — only a click/Enter commits.
 - **Manage Projects select:** options are `Use global` + each built-in `name`;
-  selecting a theme calls `onSetTheme(id, themeId)`; selecting `Use global` calls
-  `onSetTheme(id, undefined)`; the field label reads `Theme`.
+  selecting a theme calls `onSetTheme(id, themeId)` (via Save); selecting `Use global`
+  calls `onSetTheme(id, undefined)`; the field label reads `Theme`; the **swatch chip
+  beside the select repaints when the selection changes** (and shows the global theme's
+  swatch when `Use global` is selected).
 
 ## Touch points
 
@@ -567,8 +703,8 @@ MODIFIED
   src/renderer/src/App.tsx                         # resolution precedence, appShellRef + applyTheme effect, remove static data-theme attrs,
                                                    #   setProjectTheme(id, themeId?: string), Settings preview wiring, optional marker
   src/renderer/src/components/Settings.tsx         # theme gallery replaces the two Segmented controls; preview callbacks
-  src/renderer/src/components/EditProjectModal.tsx # generalized theme <select> (Use global + theme list); label "Theme"
-  src/renderer/src/styles.css                      # .theme-gallery / .theme-card / .theme-swatch (+ optional .project-theme-marker), built on tokens
+  src/renderer/src/components/EditProjectModal.tsx # generalized theme <select> (Use global + theme list) + swatch chip; label "Theme"
+  src/renderer/src/styles.css                      # .theme-gallery / .theme-card / .theme-swatch + .project-theme-chip (per-project swatch chip), built on tokens
 CREATED
   tests/theme.test.ts                              # resolveTheme + applyTheme + migration + registry whitelist (web tsconfig)
   tests/themeGallery.test.ts                       # Settings gallery render/select/preview (jsdom harness)
@@ -613,9 +749,10 @@ generalized per-project select. Each is independently revertible.
    'light' | 'system'` → **"use global"** (the cleanest, falls out of unknown-id
    validation). The alternative — `'dark' → graphite`, `'light' → sepia`, `'system' →
    use global` — was rejected as surprising. Confirm "collapse to use global."
-3. **4th preset identity.** **Graphite** (neutral graphite surfaces, cobalt accent
-   retained) is chosen as the distinct-surface palette; **Forest** (deep green
-   surfaces) was the named alternative. Confirm Graphite.
+3. **4th preset identity — RESOLVED (D5-10): Graphite.** A neutral charcoal
+   distinct-surface palette that retains the cobalt accent; overrides the
+   bg/surface/surface-alt/border/ink token groups, accent left cobalt. **Forest** (deep
+   green surfaces) was the named alternative and is **rejected**. No longer open.
 4. **Optional per-project marker.** A small accent-tinted chip/rail by the project
    name is specified as **optional** (D5-5). Decide in/out — the whole-app recolor may
    already be cue enough, and an extra chip risks decoration.
@@ -623,4 +760,18 @@ generalized per-project select. Each is independently revertible.
    the concrete values for Sepia / High-contrast / Graphite are an implementation
    detail to finalize against a WCAG-AA check (the design-system palette is the source
    for accent/highlight choices).
+6. **Live-preview scope — RESOLVED (D5-9): swatch-only + commit-to-apply.** Hover/focus
+   never recolors the running app; the **token-faithful card swatch** is the preview, and
+   only a click/Enter/Space commit applies a theme. Whole-app hover preview was rejected
+   (modal covers most of the app; rapid hover across the 2×2 grid flickers). No longer
+   open.
+7. **Per-project control form — RESOLVED (D5-11): `<select>` + swatch chip.** A plain
+   `.field` `<select>` (`Use global` + theme list) in EditProjectModal, paired with a
+   small token-faithful swatch chip beside the selected option — **not** a mini-gallery.
+   No longer open.
+8. **Default — one card vs. two — RESOLVED (D5-12): one card, split swatch.** Default
+   ships as a **single** card with a split (two-tone) swatch, labeled **"Default —
+   mixed"** with a tooltip. The two-card alternative ("Default dark" / "Default light")
+   would conflict with the pinned mixed look and inflate the 4-preset set to 5; rejected.
+   No longer open.
 ```
