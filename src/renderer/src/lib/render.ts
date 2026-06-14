@@ -146,14 +146,24 @@ export function highlightCode(container: HTMLElement): void {
     copy.className = 'code-copy'
     copy.textContent = 'Copy'
     copy.addEventListener('click', () => {
-      void navigator.clipboard.writeText(source).then(() => {
-        copy.textContent = 'Copied!'
-        copy.classList.add('copied')
-        setTimeout(() => {
-          copy.textContent = 'Copy'
-          copy.classList.remove('copied')
-        }, 1500)
-      })
+      const reset = (): void => {
+        copy.textContent = 'Copy'
+        copy.classList.remove('copied')
+      }
+      // navigator.clipboard is undefined outside a secure context; guard it and
+      // handle rejection so the button always gives feedback (never a silent
+      // no-op or an unhandled promise rejection).
+      void navigator.clipboard?.writeText(source).then(
+        () => {
+          copy.textContent = 'Copied!'
+          copy.classList.add('copied')
+          setTimeout(reset, 1500)
+        },
+        () => {
+          copy.textContent = 'Failed'
+          setTimeout(reset, 1500)
+        }
+      )
     })
     toolbar.appendChild(copy)
 
