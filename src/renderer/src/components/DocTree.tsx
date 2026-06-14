@@ -13,7 +13,10 @@ export default function DocTree({ nodes, docPath, onOpenDoc, depth = 0 }: Props)
       {nodes.map((node) =>
         node.type === 'folder' ? (
           <div key={node.path} style={{ paddingLeft: depth * 10 }}>
-            <div className="tree-folder">{node.name}</div>
+            <div className="tree-folder">
+              <i className="fa-solid fa-folder" aria-hidden="true" />
+              <span>{node.name}</span>
+            </div>
             <DocTree nodes={node.children} docPath={docPath} onOpenDoc={onOpenDoc} depth={depth + 1} />
           </div>
         ) : (
@@ -24,7 +27,11 @@ export default function DocTree({ nodes, docPath, onOpenDoc, depth = 0 }: Props)
             title={node.name}
             onClick={() => onOpenDoc(node.path)}
           >
-            {node.title}
+            <i
+              className={`tree-icon fa-solid ${node.kind === 'html' ? 'fa-file-code' : 'fa-file-lines'}`}
+              aria-hidden="true"
+            />
+            <span className="tree-label">{node.title}</span>
           </button>
         )
       )}

@@ -11,6 +11,7 @@ interface Props {
   onAddProject: () => void
   onOpenDoc: (path: string) => void
   onOpenResult: (r: SearchResult) => void
+  onOpenSettings: () => void
 }
 
 export default function Sidebar(props: Props): React.JSX.Element {
@@ -28,7 +29,22 @@ export default function Sidebar(props: Props): React.JSX.Element {
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
-        <button onClick={props.onAddProject} title="Add a local directory">＋</button>
+        <button
+          className="icon-button"
+          onClick={props.onAddProject}
+          title="Add a local directory"
+          aria-label="Add a local directory"
+        >
+          <i className="fa-solid fa-plus" aria-hidden="true" />
+        </button>
+        <button
+          className="icon-button"
+          onClick={props.onOpenSettings}
+          title="Settings"
+          aria-label="Settings"
+        >
+          <i className="fa-solid fa-gear" aria-hidden="true" />
+        </button>
       </header>
       <div className="scroll">
         <SearchBox projectId={activeId} onOpenResult={props.onOpenResult} />

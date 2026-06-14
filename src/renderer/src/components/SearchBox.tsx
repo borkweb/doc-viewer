@@ -23,18 +23,23 @@ export default function SearchBox({ projectId, onOpenResult }: Props): React.JSX
 
   return (
     <div>
-      <input
-        type="search"
-        placeholder="Search docs…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        style={{ width: '100%', padding: '6px 8px', marginBottom: 8 }}
-        disabled={!projectId}
-      />
+      <div className="search">
+        <i className="fa-solid fa-magnifying-glass search-icon" aria-hidden="true" />
+        <input
+          type="search"
+          placeholder="Search docs…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          disabled={!projectId}
+        />
+      </div>
       {query.trim() && results.length === 0 && <div className="empty">No matches.</div>}
       {results.map((r) => (
         <button key={`${r.docPath}#${r.headingId}`} className="result" onClick={() => onOpenResult(r)}>
-          <div className="h">{r.headingText || r.docTitle}</div>
+          <div className="h">
+            {r.headingId && <i className="fa-solid fa-hashtag result-icon" aria-hidden="true" />}
+            {r.headingText || r.docTitle}
+          </div>
           <div className="meta">{r.docTitle} · {r.docPath}</div>
           <div className="snip">{r.snippet}</div>
         </button>

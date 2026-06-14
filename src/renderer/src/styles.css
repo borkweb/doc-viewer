@@ -1,47 +1,315 @@
+/* Doc Viewer — Cobalt Reader design system.
+   Source of truth: .claude/skills/design-system (tokens/, components/, readme.md).
+   Cobalt Reader ships dark + an opt-in cobalt-tinted light mode. Here the two
+   semantic token sets are scoped to [data-theme="dark"|"light"] so they can be
+   applied to ANY subtree — the app sets data-theme on the chrome shell and on the
+   document area independently, letting (e.g.) dark chrome wrap a light document.
+   Mode-independent tokens (type, spacing, motion) live on :root; dark is also the
+   :root fallback. 'System' is resolved to dark/light in JS (App.tsx), so no
+   prefers-color-scheme media query is needed here.
+   Style by COMPOSING these tokens — never hardcode colors, fonts, radii, or spacing.
+   JetBrains Mono (assets/fonts.css) and Font Awesome (assets/fontawesome) are
+   vendored locally and imported in main.tsx so the strict CSP stays intact. */
+
 :root {
-  --bg: #fbfbfa; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
-  --accent: #5b3ba6; --accent-soft: #f1ecfb; --code-bg: #f4f4f3;
-  --table-head: #f6f8fa; --diagram-bg: #ffffff; --diagram-ink: #1f2328;
-  --sidebar-w: 300px;
+  /* ── Typography — mode-independent (Cobalt Reader · typography.css) ────── */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --text-ui: 13px;       /* dense chrome */
+  --leading-ui: 1.54;    /* ~20px on 13px */
+  --text-doc: 15px;      /* readable long-form */
+  --leading-doc: 1.65;
+  --text-label: 11px;    /* uppercase section labels */
+  --tracking-label: 0.06em;
+  /* Display scale (doc headings) */
+  --text-xs: 11px;  --text-sm: 12px;  --text-base: 13px; --text-md: 15px;
+  --text-lg: 18px;  --text-xl: 22px;  --text-2xl: 28px;  --text-3xl: 36px;
+  /* Weights & heading leading */
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600; --weight-bold: 700;
+  --leading-tight: 1.15; --leading-snug: 1.25;
+
+  /* ── Spacing, geometry, motion — mode-independent (spacing.css) ────────── */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+  --radius-sm: 3px;  /* inputs, buttons, chips */
+  --radius: 6px;     /* chrome panels, rows */
+  --radius-lg: 10px; /* code blocks, cards, diagrams */
+  --radius-xl: 16px; /* large cards, modals */
+  --radius-full: 999px;
+  --sidebar-w: 264px;
+  --content-w: 860px;
+  --transition: 120ms ease;
+  --transition-slow: 220ms ease;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171c; --fg: #e6edf3; --muted: #9aa4b0; --border: #2a323c;
-    --accent: #b69cf0; --accent-soft: #221c34; --code-bg: #1c2128; --table-head: #1c2128;
-  }
+
+/* ── DARK Theme — :root fallback + applicable to any [data-theme="dark"]
+   subtree (colors.css, verbatim) ─────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a0f1e;            /* cobalt-black */
+  --surface: #111d28;       /* slate-dark */
+  --surface-alt: #1c2b3a;   /* slate */
+  --surface-raised: #2a3f54;/* slate-light */
+  --fg: #f0f4ff;            /* ink */
+  --muted: #6b7fa8;         /* ink-muted */
+  --border: #243750;
+  --border-strong: #2a3f54;
+  --desk: #05080f;          /* deep area behind app windows */
+  --faint: #2a3f54;         /* low-emphasis decoration (empty-state icons) */
+  --scrollbar-thumb: #2a3f54;
+  --scrollbar-thumb-hover: #36506e;
+
+  --accent: #4a9eff;        /* primary */
+  --accent-hover: #7bbdff;  /* primary-light */
+  --accent-active: #1a7fe8; /* primary-dark */
+  --accent-soft: rgb(74 158 255 / 14%);
+  --accent-ring: rgb(74 158 255 / 45%);
+
+  --highlight: #56ccf2;     /* cyan */
+  --highlight-soft: rgb(86 204 242 / 16%);
+
+  --success: #34d399; --success-soft: rgb(52 211 153 / 15%);
+  --warning: #f5b14c; --warning-soft: rgb(245 177 76 / 15%);
+  --error: #ff6b6b;   --error-soft: rgb(255 107 107 / 14%);
+
+  --code-bg: #0e1a2d;
+  --code-fg: #d6e4ff;
+  --table-head: #1c2b3a;
+  --diagram-bg: #111d28;
+  --diagram-ink: #f0f4ff;
+  --mark-bg: rgb(86 204 242 / 22%);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow: 0 2px 6px rgb(0 0 0 / 35%), 0 8px 24px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 8px 28px rgb(0 0 0 / 45%), 0 24px 64px rgb(0 0 0 / 55%);
+  --glow-accent: 0 0 0 1px rgb(74 158 255 / 35%), 0 4px 18px rgb(74 158 255 / 28%);
+  --glow-cyan: 0 0 18px rgb(86 204 242 / 30%);
 }
+
+/* ── LIGHT Theme — applicable to any [data-theme="light"] subtree
+   (colors.css [data-theme="light"]) ─────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --surface: #eff3fb;        /* faint cobalt-gray chrome */
+  --surface-alt: #e4ebf6;
+  --surface-raised: #ffffff;
+  --fg: #14233a;             /* deep slate ink */
+  --muted: #5c7090;
+  --border: #dce4f0;
+  --border-strong: #c4d0e2;
+  --desk: #dde5f1;
+  --faint: #b9c6da;
+  --scrollbar-thumb: #c4d0e2;
+  --scrollbar-thumb-hover: #a9b8d0;
+
+  --accent: #1a7fe8;         /* deeper cobalt for contrast on white */
+  --accent-hover: #1565c8;
+  --accent-active: #0f4fa0;
+  --accent-soft: rgb(26 127 232 / 10%);
+  --accent-ring: rgb(26 127 232 / 35%);
+
+  --highlight: #2bb5e0;      /* cyan-dark — legible on light */
+  --highlight-soft: rgb(43 181 224 / 16%);
+
+  --success: #1a9e6a; --success-soft: rgb(26 158 106 / 14%);
+  --warning: #c77f1a; --warning-soft: rgb(199 127 26 / 14%);
+  --error: #dc3b3e;   --error-soft: rgb(220 59 62 / 12%);
+
+  --code-bg: #f3f6fc;
+  --code-fg: #1b2d49;
+  --table-head: #eff3fb;
+  --diagram-bg: #ffffff;
+  --diagram-ink: #14233a;
+  --mark-bg: rgb(43 181 224 / 28%);
+
+  --shadow-sm: 0 1px 2px rgb(20 35 58 / 8%);
+  --shadow: 0 2px 6px rgb(20 35 58 / 8%), 0 8px 24px rgb(20 35 58 / 10%);
+  --shadow-lg: 0 8px 28px rgb(20 35 58 / 12%), 0 24px 64px rgb(20 35 58 / 16%);
+  --glow-accent: 0 0 0 1px rgb(26 127 232 / 30%), 0 4px 18px rgb(26 127 232 / 22%);
+  --glow-cyan: 0 0 18px rgb(43 181 224 / 26%);
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg);
-  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: var(--text-ui)/var(--leading-ui) var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: var(--highlight-soft); color: var(--fg); }
+
+/* Scrollbars in the cobalt key */
+* { scrollbar-color: var(--scrollbar-thumb) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb); border-radius: var(--radius-full);
+  border: 2px solid transparent; background-clip: content-box; }
+
 .layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }
-.sidebar { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.sidebar header { padding: 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
+
+/* ── Sidebar chrome — dense ─────────────────────────────────────────────── */
+.sidebar { background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; }
+.sidebar header { padding: var(--space-2); border-bottom: 1px solid var(--border);
+  display: flex; gap: var(--space-2); align-items: center; }
 .sidebar select, .sidebar button, .sidebar input { font: inherit; }
-.sidebar .scroll { overflow-y: auto; padding: 8px; flex: 1; }
-.content { overflow-y: auto; padding: 32px 40px 120px; max-width: 980px; }
-.tree-item { display: block; width: 100%; text-align: left; background: none; border: 0;
-  color: var(--fg); padding: 4px 8px; border-radius: 6px; cursor: pointer; }
-.tree-item:hover { background: var(--accent-soft); }
-.tree-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.tree-folder { color: var(--muted); padding: 6px 8px 2px; font-size: .8em; text-transform: uppercase; letter-spacing: .04em; }
-.result { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px;
-  padding: 6px 8px; cursor: pointer; color: var(--fg); }
-.result:hover { background: var(--accent-soft); }
-.result .h { font-weight: 600; }
-.result .meta { font-size: .8em; color: var(--muted); }
-.result .snip { font-size: .82em; color: var(--muted); }
-.empty { color: var(--muted); padding: 24px; }
-h1, h2, h3 { line-height: 1.25; scroll-margin-top: 16px; }
-pre { background: var(--code-bg); padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
-code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em;
-  background: var(--code-bg); padding: .15em .4em; border-radius: 5px; }
-pre code { background: none; padding: 0; }
-table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-th, td { border: 1px solid var(--border); padding: 6px 10px; }
-th { background: var(--table-head); }
+/* Chrome controls sit flush on the surface — transparent at rest, a subtle tint
+   on hover, an accent halo on focus. Same affordance as tree/result rows. */
+.sidebar select, .sidebar input {
+  height: 28px; padding: 0 var(--space-2); color: var(--fg);
+  background: none; border: 0; border-radius: var(--radius);
+  transition: background var(--transition), box-shadow var(--transition); }
+.sidebar select:hover, .sidebar input:hover { background: var(--surface-alt); }
+.sidebar select:focus-visible, .sidebar input:focus-visible {
+  outline: none; background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-ring); }
+.sidebar input::placeholder { color: var(--muted); }
+
+/* Square icon button (add project, chrome actions) */
+.icon-button {
+  height: 28px; width: 28px; flex: 0 0 auto; display: inline-flex;
+  align-items: center; justify-content: center; color: var(--muted); cursor: pointer;
+  background: none; border: 0; border-radius: var(--radius);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition); }
+.icon-button:hover { background: var(--surface-alt); color: var(--fg); }
+.icon-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+.icon-button:active { transform: translateY(0.5px); }
+
+.sidebar .scroll { overflow-y: auto; padding: var(--space-2); flex: 1; }
+
+/* ── Search ─────────────────────────────────────────────────────────────── */
+.search { position: relative; margin-bottom: var(--space-2); }
+.search .search-icon {
+  position: absolute; left: var(--space-2); top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 12px; pointer-events: none; }
+.search input { width: 100%; padding-left: 26px; }
+
+/* ── Tree + result rows ─────────────────────────────────────────────────── */
+.tree-item, .result {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  color: var(--fg); border-radius: var(--radius); cursor: pointer;
+  transition: background var(--transition), color var(--transition); }
+.tree-item {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-2); }
+.tree-item .tree-icon { color: var(--muted); font-size: 12px; width: 14px;
+  text-align: center; flex: 0 0 auto; transition: color var(--transition); }
+.tree-item .tree-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item:hover, .result:hover { background: var(--accent-soft); }
+.tree-item:focus-visible, .result:focus-visible {
+  outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+.tree-item.active { background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-semibold); }
+.tree-item.active .tree-icon { color: var(--accent); }
+.tree-folder { display: flex; align-items: center; gap: var(--space-2);
+  color: var(--muted); padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-label); font-weight: var(--weight-medium);
+  text-transform: uppercase; letter-spacing: var(--tracking-label); }
+
+.result { padding: var(--space-2); }
+.result .h { display: flex; align-items: baseline; gap: var(--space-2);
+  font-weight: var(--weight-semibold); }
+.result .h .result-icon { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
+.result .meta, .result .snip { font-size: var(--text-sm); color: var(--muted); }
+.result mark { background: var(--mark-bg); color: var(--fg); border-radius: 2px; padding: 0 2px; }
+
+/* ── Empty states ───────────────────────────────────────────────────────── */
+.empty { color: var(--muted); padding: var(--space-6); }
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-3); color: var(--muted); text-align: center;
+  min-height: 60vh; padding: var(--space-6); }
+.empty-state .empty-icon { font-size: 40px; color: var(--faint); }
+
+/* ── Content — readable long-form (Cobalt Reader · base.css / .cobalt-doc) ─
+   The pane fills its grid cell and carries the document theme's own surface;
+   the reading column is centered inside via .content-inner. */
+.content { overflow-y: auto; background: var(--bg); color: var(--fg);
+  font-size: var(--text-doc); line-height: var(--leading-doc); }
+.content-inner { max-width: var(--content-w); margin: 0 auto;
+  padding: var(--space-10) var(--space-12) var(--space-16); }
+.content h1, .content h2, .content h3, .content h4 {
+  line-height: var(--leading-snug); scroll-margin-top: var(--space-4);
+  color: var(--fg); font-weight: var(--weight-semibold); }
+.content h1 { font-size: var(--text-3xl); letter-spacing: -0.01em; margin: 0 0 var(--space-5); }
+.content h2 { font-size: var(--text-xl); margin: var(--space-10) 0 var(--space-4);
+  padding-bottom: var(--space-2); border-bottom: 1px solid var(--border); }
+.content h3 { font-size: var(--text-lg); margin: var(--space-8) 0 var(--space-3); }
+.content a { color: var(--accent); text-decoration: none; }
+.content a:hover { color: var(--accent-hover); text-decoration: underline; }
+.content pre { background: var(--code-bg); color: var(--code-fg);
+  padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--border);
+  overflow-x: auto; font-family: var(--font-mono); font-size: 0.86em; }
+.content code { font-family: var(--font-mono); font-size: 0.86em; color: var(--code-fg);
+  background: var(--code-bg); padding: 0.15em 0.4em; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); }
+.content pre code { background: none; padding: 0; border: 0; }
+.content table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+.content th, .content td { border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3); text-align: left; }
+.content th { background: var(--table-head); font-weight: var(--weight-semibold); }
+.content blockquote { margin: 1em 0; padding: var(--space-2) var(--space-4);
+  border-left: 3px solid var(--accent); background: var(--accent-soft);
+  border-radius: 0 var(--radius) var(--radius) 0; color: var(--muted); }
+.content mark { background: var(--mark-bg); color: var(--fg); border-radius: 2px; padding: 0 2px; }
+.content hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-8) 0; }
+
+/* ── Diagrams ───────────────────────────────────────────────────────────── */
 .diagram { margin: 1.4em 0; }
 .diagram-canvas { height: min(70vh, 720px); background: var(--diagram-bg);
-  border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: grab; }
+  border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; cursor: grab; }
 .diagram.expanded .diagram-canvas { height: min(82vh, 900px); }
 .diagram-canvas svg text { fill: var(--diagram-ink); }
-.render-error { color: #b3261e; background: #fdecea; border: 1px solid #f5c2bd; padding: 8px 12px; border-radius: 8px; }
+
+/* ── Inline error ───────────────────────────────────────────────────────── */
+.render-error { color: var(--error); background: var(--error-soft);
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius); }
+
+/* ── Settings modal ─────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-6); background: rgb(5 8 15 / 55%);
+  backdrop-filter: blur(2px); }
+.modal {
+  width: 440px; max-width: 100%; background: var(--surface-raised); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg); overflow: hidden; }
+.modal header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.modal header h2 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.modal .modal-body { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-5); }
+.modal .section-label {
+  font-size: var(--text-label); font-weight: var(--weight-medium);
+  text-transform: uppercase; letter-spacing: var(--tracking-label); color: var(--muted); }
+
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.setting-row .setting-text { display: flex; flex-direction: column; gap: 2px; }
+.setting-row .setting-name { font-weight: var(--weight-medium); }
+.setting-row .setting-hint { font-size: var(--text-sm); color: var(--muted); }
+
+/* Segmented control — flush chrome, accent-soft for the active segment */
+.segmented {
+  display: inline-flex; flex: 0 0 auto; padding: 2px; gap: 2px;
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius); }
+.segmented button {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 4px var(--space-2); font: inherit; color: var(--muted); cursor: pointer;
+  background: none; border: 0; border-radius: var(--radius-sm);
+  transition: background var(--transition), color var(--transition); }
+.segmented button:hover { color: var(--fg); }
+.segmented button.active { background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-semibold); }
+.segmented button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+.segmented button .seg-icon { font-size: 11px; }
