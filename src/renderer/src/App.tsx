@@ -5,6 +5,8 @@ import Sidebar from './components/Sidebar'
 import DocView from './components/DocView'
 import Settings from './components/Settings'
 import StatusBar from './components/StatusBar'
+import AddProjectModal from './components/AddProjectModal'
+import BranchSwitcher from './components/BranchSwitcher'
 import type { TocEntry, DocStats } from './lib/render'
 import {
   loadThemeSettings,
@@ -43,6 +45,7 @@ export default function App(): React.JSX.Element {
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => { saveThemeSettings(theme) }, [theme])
 
@@ -76,13 +79,41 @@ export default function App(): React.JSX.Element {
     setTree(tree)
   }, [resetDocState])
 
-  const addProject = useCallback(async () => {
-    const dir = await window.api.pickDirectory()
-    if (!dir) return
-    const p = await window.api.addLocalProject(dir)
+  const onAdded = useCallback(async (p: Project) => {
+    setAddOpen(false)
     await refreshProjects()
     await selectProject(p.id)
   }, [refreshProjects, selectProject])
+
+  const rebuild = useCallback(async () => {
+    if (!activeId) return
+    await window.api.rebuildProject(activeId)
+    await refreshProjects()
+    const { tree } = await window.api.selectProject(activeId)
+    setTree(tree)
+  }, [activeId, refreshProjects])
+
+  const switchRef = useCallback(async (ref: string) => {
+    if (!activeId) return
+    const { tree } = await window.api.switchRef(activeId, ref)
+    setTree(tree)
+    setDocPath(null)
+    setToc([])
+    await refreshProjects()
+  }, [activeId, refreshProjects])
+
+  const addRef = useCallback(async (ref: string) => {
+    if (!activeId) return
+    const { tree } = await window.api.addRef(activeId, ref)
+    setTree(tree)
+    await refreshProjects()
+  }, [activeId, refreshProjects])
+
+  const removeRef = useCallback(async (ref: string) => {
+    if (!activeId) return
+    await window.api.removeRef(activeId, ref)
+    await refreshProjects()
+  }, [activeId, refreshProjects])
 
   const openResult = useCallback((r: SearchResult) => {
     setDocPath(r.docPath)
@@ -115,10 +146,23 @@ export default function App(): React.JSX.Element {
       <TopBar
         projects={projects}
         activeId={activeId}
+        activeProject={activeProject}
         docTitle={docTitle}
         toc={toc}
         onSelectProject={selectProject}
-        onAddProject={addProject}
+        onOpenAdd={() => setAddOpen(true)}
+        onRebuild={rebuild}
+        branchSwitcher={
+          activeProject?.type === 'github' ? (
+            <BranchSwitcher
+              refs={activeProject.refs}
+              currentRef={activeProject.currentRef}
+              onSwitch={switchRef}
+              onAddRef={addRef}
+              onRemoveRef={removeRef}
+            />
+          ) : undefined
+        }
         onJumpTo={jumpTo}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -163,6 +207,7 @@ export default function App(): React.JSX.Element {
           onJump={jumpTo}
         />
       )}
+      {addOpen && <AddProjectModal onAdded={onAdded} onClose={() => setAddOpen(false)} />}
       {settingsOpen && (
         <Settings settings={theme} onChange={setTheme} onClose={() => setSettingsOpen(false)} />
       )}
