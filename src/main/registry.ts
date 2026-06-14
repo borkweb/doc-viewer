@@ -90,6 +90,21 @@ export async function addGithubProject(
   return { project, created: true }
 }
 
+export async function findGithubByIdentity(
+  source: string,
+  docsSubpath: string | undefined,
+  excludeId?: string
+): Promise<GithubProject | undefined> {
+  const identity = githubIdentity(source, docsSubpath)
+  const projects = await readAll()
+  return projects.find(
+    (p): p is GithubProject =>
+      p.type === 'github' &&
+      p.id !== excludeId &&
+      githubIdentity(p.source, p.docsSubpath) === identity
+  )
+}
+
 function requireGithub(projects: Project[], id: string): GithubProject {
   const p = projects.find((x) => x.id === id)
   if (!p) throw new Error(`Project not found: ${id}`)
