@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpc } from './ipc'
 import { sweepOrphans } from './cache'
+import { setIndexSink, stopWatch } from './projectService'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -17,6 +18,13 @@ function createWindow(): void {
   })
 
   win.on('ready-to-show', () => win.show())
+  setIndexSink((payload) => {
+    if (!win.webContents.isDestroyed()) win.webContents.send('index:changed', payload)
+  })
+  win.on('closed', () => {
+    setIndexSink(null)
+    stopWatch()
+  })
 
   // Open http(s) links (e.g. the Settings credits) in the system browser
   // instead of navigating the app window away from the renderer.

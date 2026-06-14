@@ -5,7 +5,7 @@ import { listProjects, addLocalProject, removeProject, updateProject } from './r
 import {
   selectProject, getDoc, search,
   addGithubProject, rebuildProject, cancelBuild,
-  listRefs, switchRef, addRef, removeRef, setDocsSubpath
+  listRefs, switchRef, addRef, removeRef, setDocsSubpath, releaseIfActive
 } from './projectService'
 import { purgeProjectCache } from './cache'
 
@@ -24,6 +24,7 @@ export function registerIpc(): void {
       addGithubProject(source, opts ?? {}, progressTo(e))
   )
   ipcMain.handle('projects:remove', async (_e, id: string) => {
+    releaseIfActive(id)
     await purgeProjectCache(id) // remove derived cache (no-op for local)
     await removeProject(id)
   })
