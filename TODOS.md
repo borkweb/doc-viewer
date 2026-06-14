@@ -23,6 +23,16 @@ sanitize/mermaid config), project settings UI.
 
 ---
 
+## Plan 1 review follow-ups (from final review, 2026-06-14)
+
+- **P3 — Setext heading support.** `parse.ts` is ATX-only (`#`-style); setext headings (`===`/`---`) aren't indexed as Sections so they're not searchable. (The raw-vs-rendered slug mismatch was fixed in `fix(slug)`; only setext support remains deferred.)
+- **P2 — Render the sticky TOC** from `buildToc` (currently computed but discarded).
+- **P2 — Surface `removeProject` + a Reindex action** in the UI (wired/tested but no caller).
+- **P2 — Project status transitions:** mark `unavailable`/`error` when a local source dir is missing (today `discover` swallows it and reports `docCount: 0`).
+- **P3 — Observability:** `userData/logs/` structured log + in-UI build summary (wire up the `skipped` data `discoverDetailed` already computes).
+- **P3 — Tests:** `enhanceDiagrams`/mermaid-error escaping, `buildToc` anchor parity, iframe sandbox, discover caps, and a Playwright-Electron launch smoke.
+- **P3 — Remove or consume `active.docs`** in `projectService` (currently dead state).
+
 ## Phase 2 candidates (documented in spec "NOT in scope")
 
 - **Cross-project global search (E1)** — P2, M. Search all projects via a combined
