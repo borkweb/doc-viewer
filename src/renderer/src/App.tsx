@@ -349,6 +349,7 @@ export default function App(): React.JSX.Element {
                 projects={projects}
                 onRename={renameProject}
                 onSetTheme={setProjectTheme}
+                globalThemeId={theme.themeId}
                 onSetDocsSubpath={setProjectDocsSubpath}
                 onDelete={deleteProject}
                 onSelect={selectProject}

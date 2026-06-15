@@ -6,6 +6,7 @@ export interface ManageProjectsProps {
   projects: Project[]
   onRename: (id: string, name: string) => void
   onSetTheme: (id: string, themeId: string | undefined) => void
+  globalThemeId?: string
   onSetDocsSubpath: (id: string, subpath: string) => Promise<{ docCount: number }>
   onDelete: (id: string) => void
   onSelect: (id: string) => void
@@ -169,6 +170,7 @@ export default function ManageProjects(props: ManageProjectsProps): React.JSX.El
           project={editingProject}
           onRename={props.onRename}
           onSetTheme={props.onSetTheme}
+          globalThemeId={props.globalThemeId}
           onSetDocsSubpath={props.onSetDocsSubpath}
           onClose={() => setEditId(null)}
         />

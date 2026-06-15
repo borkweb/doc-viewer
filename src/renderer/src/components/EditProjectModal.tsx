@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import type { Project, ThemeChoice } from '@shared/types'
+import type { Project } from '@shared/types'
+import { THEME_LIST, swatchColors, themeById, DEFAULT_THEME_ID } from '../lib/theme'
 
-const THEME_OPTIONS: Array<{ value: '' | ThemeChoice; label: string }> = [
-  { value: '', label: 'Global' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' },
-  { value: 'system', label: 'System' }
+const THEME_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Use global' },
+  ...THEME_LIST.map((theme) => ({ value: theme.id, label: theme.name }))
 ]
 
-function isThemeChoice(value: string | undefined): value is ThemeChoice {
+function isKnownTheme(value: string | undefined): boolean {
   return !!value && THEME_OPTIONS.some((option) => option.value === value)
 }
 
@@ -18,6 +17,7 @@ export interface EditProjectModalProps {
   onSetTheme: (id: string, themeId: string | undefined) => void
   onSetDocsSubpath: (id: string, subpath: string) => Promise<{ docCount: number }>
   onClose: () => void
+  globalThemeId?: string
 }
 
 function isCollisionError(error: unknown): boolean {
@@ -29,7 +29,7 @@ function isCollisionError(error: unknown): boolean {
 export default function EditProjectModal(props: EditProjectModalProps): React.JSX.Element {
   const { project } = props
   const [name, setName] = useState(project.name)
-  const [theme, setTheme] = useState<'' | ThemeChoice>(isThemeChoice(project.themeId) ? project.themeId : '')
+  const [theme, setTheme] = useState<string>(isKnownTheme(project.themeId) ? project.themeId as string : '')
   const [subpath, setSubpath] = useState(project.type === 'github' ? project.docsSubpath ?? '' : '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -41,7 +41,7 @@ export default function EditProjectModal(props: EditProjectModalProps): React.JS
     const trimmedName = name.trim()
     if (trimmedName && trimmedName !== project.name) props.onRename(project.id, trimmedName)
 
-    const nextTheme = theme ? (theme as ThemeChoice) : undefined
+    const nextTheme = theme || undefined
     if (nextTheme !== project.themeId) props.onSetTheme(project.id, nextTheme)
 
     // Docs subpath rebuilds the project, so it is async and may fail or find no docs.
@@ -98,17 +98,31 @@ export default function EditProjectModal(props: EditProjectModalProps): React.JS
           </label>
 
           <label className="field">
-            <span>Document theme</span>
-            <select
-              data-role="theme-select"
-              value={theme}
-              onChange={(event) => setTheme(event.target.value as '' | ThemeChoice)}
-              disabled={busy}
-            >
-              {THEME_OPTIONS.map((option) => (
-                <option key={option.value || 'global'} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            <span>Theme</span>
+            <div className="theme-field-row">
+              <select
+                data-role="theme-select"
+                value={theme}
+                onChange={(event) => setTheme(event.target.value)}
+                disabled={busy}
+              >
+                {THEME_OPTIONS.map((option) => (
+                  <option key={option.value || 'global'} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              {(() => {
+                const chipId = theme || props.globalThemeId || DEFAULT_THEME_ID
+                const chipTheme = themeById(chipId)
+                const c = swatchColors(chipTheme, chipTheme.base === 'light' ? 'light' : 'dark')
+                return (
+                  <span className="project-theme-chip" data-theme-chip data-chip-theme={chipId} aria-hidden="true">
+                    <span className="project-theme-chip-band" style={{ background: c.bg }} />
+                    <span className="project-theme-chip-band" style={{ background: c.surface }} />
+                    <span className="project-theme-chip-band" style={{ background: c.accent }} />
+                  </span>
+                )
+              })()}
+            </div>
           </label>
 
           {project.type === 'github' && (
