@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import type { Project, NavNode, SearchResult, ThemeChoice } from '@shared/types'
-import { THEME_CHOICES } from '@shared/types'
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react'
+import type { Project, NavNode, SearchResult } from '@shared/types'
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import DocView from './components/DocView'
@@ -12,10 +11,12 @@ import ManageProjects from './components/ManageProjects'
 import CommandPalette from './components/CommandPalette'
 import type { TocEntry, DocStats } from './lib/render'
 import {
-  loadRegionTheme,
-  saveRegionTheme,
-  resolveRegionMode,
-  type RegionThemeSettings
+  loadThemeSettings,
+  saveThemeSettings,
+  resolveTheme,
+  applyTheme,
+  themeById,
+  type ThemeSettings
 } from './lib/theme'
 import { loadSession, saveSession, pickAnchor, type SessionState } from './lib/session'
 
@@ -56,13 +57,13 @@ export default function App(): React.JSX.Element {
   const [stats, setStats] = useState<DocStats | null>(null)
   const [docRemoved, setDocRemoved] = useState(false)
   const [docReloadNonce, setDocReloadNonce] = useState(0)
+  const appShellRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const [initialSession] = useState<SessionState>(loadSession)
   const sessionRef = useRef<SessionState>(initialSession)
   const didRunRef = useRef(false)
 
-  // Theme: chrome and document themed independently; 'system' follows the OS.
-  const [theme, setTheme] = useState<RegionThemeSettings>(loadRegionTheme)
+  const [theme, setTheme] = useState<ThemeSettings>(loadThemeSettings)
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
@@ -72,7 +73,7 @@ export default function App(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [refFocusNonce, setRefFocusNonce] = useState(0)
 
-  useEffect(() => { saveRegionTheme(theme) }, [theme])
+  useEffect(() => { saveThemeSettings(theme) }, [theme])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
@@ -82,13 +83,21 @@ export default function App(): React.JSX.Element {
   }, [])
 
   const activeProject = activeId ? projects.find((p) => p.id === activeId) ?? null : null
-  const chromeTheme = resolveRegionMode(theme.chrome, systemDark)
-  const projChoice = activeProject?.themeId
-  const docChoice: ThemeChoice =
-    projChoice && (THEME_CHOICES as readonly string[]).includes(projChoice)
-      ? (projChoice as ThemeChoice)
-      : theme.document
-  const docTheme = resolveRegionMode(docChoice, systemDark)
+  const effectiveThemeId = activeProject?.themeId ?? theme.themeId
+  const resolvedTheme = themeById(effectiveThemeId)
+
+  useLayoutEffect(() => {
+    const chrome = appShellRef.current
+    const doc = mainRef.current
+    if (chrome) {
+      const r = resolveTheme(resolvedTheme, systemDark, 'chrome')
+      applyTheme(chrome, r.mode, r.overrides)
+    }
+    if (doc) {
+      const r = resolveTheme(resolvedTheme, systemDark, 'document')
+      applyTheme(doc, r.mode, r.overrides)
+    }
+  }, [resolvedTheme, systemDark])
 
   const refreshProjects = useCallback(async () => {
     setProjects(await window.api.listProjects())
@@ -308,7 +317,7 @@ export default function App(): React.JSX.Element {
   const manageActive = view === 'manage'
 
   return (
-    <div className="app-shell" data-theme={chromeTheme}>
+    <div className="app-shell" ref={appShellRef}>
       <TopBar
         projects={projects}
         activeId={activeId}
@@ -333,7 +342,7 @@ export default function App(): React.JSX.Element {
             onOpenResult={openResult}
           />
         )}
-        <main className="content" data-theme={docTheme} ref={mainRef}>
+        <main className="content" ref={mainRef}>
           <div className="content-inner">
             {manageActive ? (
               <ManageProjects

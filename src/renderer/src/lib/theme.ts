@@ -1,12 +1,6 @@
 // Curator theme model (Plan 5). A theme layers whitelisted CSS custom-property
 // overrides over one of the two base `data-theme="dark|light"` palettes.
-// The legacy two-region API is retained as Region* only until T3 migrates App
-// and Settings to the new model.
-
-import type { ThemeChoice } from '@shared/types'
-import { THEME_CHOICES } from '@shared/types'
-
-export type { ThemeChoice }
+// Applied imperatively by App to the chrome and document roots.
 
 export type Mode = 'dark' | 'light'
 export type CssVar = `--${string}`
@@ -208,43 +202,4 @@ export function saveThemeSettings(settings: ThemeSettings): void {
   } catch {
     /* ignore quota/availability — theme is non-critical state */
   }
-}
-
-export type RegionMode = 'dark' | 'light'
-export interface RegionThemeSettings {
-  chrome: ThemeChoice
-  document: ThemeChoice
-}
-export const DEFAULT_REGION_THEME: RegionThemeSettings = { chrome: 'dark', document: 'light' }
-const CHOICES: readonly ThemeChoice[] = THEME_CHOICES
-
-function isChoice(v: unknown): v is ThemeChoice {
-  return typeof v === 'string' && (CHOICES as string[]).includes(v)
-}
-
-export function loadRegionTheme(): RegionThemeSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULT_REGION_THEME
-    const parsed = JSON.parse(raw) as Partial<RegionThemeSettings>
-    return {
-      chrome: isChoice(parsed.chrome) ? parsed.chrome : DEFAULT_REGION_THEME.chrome,
-      document: isChoice(parsed.document) ? parsed.document : DEFAULT_REGION_THEME.document
-    }
-  } catch {
-    return DEFAULT_REGION_THEME
-  }
-}
-
-export function saveRegionTheme(settings: RegionThemeSettings): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-  } catch {
-    /* ignore */
-  }
-}
-
-export function resolveRegionMode(choice: ThemeChoice, systemDark: boolean): RegionMode {
-  if (choice === 'system') return systemDark ? 'dark' : 'light'
-  return choice
 }

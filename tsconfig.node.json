@@ -13,5 +13,5 @@
     "paths": { "@shared/*": ["src/shared/*"] }
   },
   "include": ["src/main", "src/preload", "src/shared", "tests", "electron.vite.config.ts"],
-  "exclude": ["tests/render.test.ts", "tests/addProjectModal.test.ts", "tests/branchSwitcher.test.ts", "tests/manageProjects.test.ts", "tests/editProjectModal.test.ts", "tests/topBarManage.test.ts", "tests/appDeleteActive.test.ts", "tests/session.test.ts", "tests/sessionRestore.test.ts", "tests/fuzzy.test.ts", "tests/commandPalette.test.ts", "tests/appPalette.test.ts", "tests/indexChanged.test.ts", "tests/theme.test.ts", "tests/helpers/localStorage.ts"]
+  "exclude": ["tests/render.test.ts", "tests/addProjectModal.test.ts", "tests/branchSwitcher.test.ts", "tests/manageProjects.test.ts", "tests/editProjectModal.test.ts", "tests/topBarManage.test.ts", "tests/appDeleteActive.test.ts", "tests/session.test.ts", "tests/sessionRestore.test.ts", "tests/fuzzy.test.ts", "tests/commandPalette.test.ts", "tests/appPalette.test.ts", "tests/indexChanged.test.ts", "tests/theme.test.ts", "tests/themeGallery.test.ts", "tests/helpers/localStorage.ts"]
 }
