@@ -15,6 +15,14 @@ import { purgeProjectCache } from './cache'
 // 'dark' | 'light' | 'system' values at the next settings write.
 const BUILTIN_THEME_IDS = new Set(['default', 'sepia', 'high-contrast', 'graphite'])
 
+type ProjectSettingsPatch = { name?: string; docsSubpath?: string; themeId?: string }
+
+export function normalizeProjectSettingsPatch(patch: ProjectSettingsPatch): ProjectSettingsPatch {
+  if (!Object.prototype.hasOwnProperty.call(patch, 'themeId')) return patch
+  const themeId = patch.themeId && BUILTIN_THEME_IDS.has(patch.themeId) ? patch.themeId : undefined
+  return { ...patch, themeId }
+}
+
 export function registerIpc(): void {
   const progressTo = (e: IpcMainInvokeEvent) => (p: BuildProgress): void => {
     if (!e.sender.isDestroyed()) e.sender.send('build:progress', p)
@@ -36,11 +44,10 @@ export function registerIpc(): void {
   })
   ipcMain.handle(
     'projects:updateSettings',
-    (_e, id: string, patch: { name?: string; docsSubpath?: string; themeId?: string }) => {
+    (_e, id: string, patch: ProjectSettingsPatch) => {
       // Write-time-only cleanup (D5-14): lingering legacy ids are inert at
-      // runtime, and are cleared when a project settings write happens.
-      const themeId = patch.themeId && BUILTIN_THEME_IDS.has(patch.themeId) ? patch.themeId : undefined
-      return updateProject(id, { ...patch, themeId })
+      // runtime, and are cleared when a theme settings write happens.
+      return updateProject(id, normalizeProjectSettingsPatch(patch))
     }
   )
   ipcMain.handle('projects:rebuild', (e, id: string) => rebuildProject(id, progressTo(e)))
