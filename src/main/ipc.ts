@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import type { BuildProgress, ThemeChoice } from '@shared/types'
+import type { BuildProgress } from '@shared/types'
 import { listProjects, addLocalProject, removeProject, updateProject } from './registry'
 import {
   selectProject, getDoc, search,
@@ -8,6 +8,20 @@ import {
   listRefs, switchRef, addRef, removeRef, setDocsSubpath, releaseIfActive
 } from './projectService'
 import { purgeProjectCache } from './cache'
+
+// Built-in theme ids — keep in sync with BUILTIN_THEMES in
+// src/renderer/src/lib/theme.ts. Main must not import the renderer module.
+// Unknown ids are dropped to "use global", which also cleans up legacy
+// 'dark' | 'light' | 'system' values at the next settings write.
+const BUILTIN_THEME_IDS = new Set(['default', 'sepia', 'high-contrast', 'graphite'])
+
+type ProjectSettingsPatch = { name?: string; docsSubpath?: string; themeId?: string }
+
+export function normalizeProjectSettingsPatch(patch: ProjectSettingsPatch): ProjectSettingsPatch {
+  if (!Object.prototype.hasOwnProperty.call(patch, 'themeId')) return patch
+  const themeId = patch.themeId && BUILTIN_THEME_IDS.has(patch.themeId) ? patch.themeId : undefined
+  return { ...patch, themeId }
+}
 
 export function registerIpc(): void {
   const progressTo = (e: IpcMainInvokeEvent) => (p: BuildProgress): void => {
@@ -30,8 +44,11 @@ export function registerIpc(): void {
   })
   ipcMain.handle(
     'projects:updateSettings',
-    (_e, id: string, patch: { name?: string; docsSubpath?: string; themeId?: ThemeChoice }) =>
-      updateProject(id, patch)
+    (_e, id: string, patch: ProjectSettingsPatch) => {
+      // Write-time-only cleanup (D5-14): lingering legacy ids are inert at
+      // runtime, and are cleared when a theme settings write happens.
+      return updateProject(id, normalizeProjectSettingsPatch(patch))
+    }
   )
   ipcMain.handle('projects:rebuild', (e, id: string) => rebuildProject(id, progressTo(e)))
   ipcMain.handle('projects:setDocsSubpath', (e, id: string, subpath: string) =>

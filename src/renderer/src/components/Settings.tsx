@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import type { ThemeChoice, ThemeSettings } from '../lib/theme'
+import { useEffect, useRef, useState } from 'react'
+import { THEME_LIST, swatchColors, type ThemeSettings, type Theme } from '../lib/theme'
 
 interface Props {
   settings: ThemeSettings
@@ -7,42 +7,47 @@ interface Props {
   onClose: () => void
 }
 
-const OPTIONS: { value: ThemeChoice; label: string; icon: string }[] = [
-  { value: 'dark', label: 'Dark', icon: 'fa-moon' },
-  { value: 'light', label: 'Light', icon: 'fa-sun' },
-  { value: 'system', label: 'System', icon: 'fa-desktop' }
-]
+const DESCRIPTORS: Record<string, string> = {
+  default: 'Cobalt dark chrome, light document',
+  sepia: 'Warm paper, easy on the eyes',
+  'high-contrast': 'Maximum legibility',
+  graphite: 'Neutral graphite surfaces'
+}
 
-function Segmented({
-  value,
-  onSelect,
-  label
-}: {
-  value: ThemeChoice
-  onSelect: (v: ThemeChoice) => void
-  label: string
-}): React.JSX.Element {
+const DEFAULT_TOOLTIP = "Pinned: dark chrome with a light document - today's default look"
+
+function Swatch({ theme }: { theme: Theme }): React.JSX.Element {
+  if (theme.id === 'default') {
+    const left = swatchColors(theme, 'dark')
+    const right = swatchColors(theme, 'light')
+    return (
+      <div className="theme-swatch" data-swatch-split aria-hidden="true">
+        <span className="theme-swatch-chip" style={{ background: left.bg }} />
+        <span className="theme-swatch-chip" style={{ background: left.surface }} />
+        <span className="theme-swatch-divider" />
+        <span className="theme-swatch-chip" style={{ background: right.surface }} />
+        <span className="theme-swatch-chip" style={{ background: right.bg }} />
+        <span className="theme-swatch-accent" style={{ background: right.accent }} />
+        <span className="theme-swatch-aa" style={{ color: right.fg, background: right.bg }}>Aa</span>
+      </div>
+    )
+  }
+
+  const c = swatchColors(theme, theme.base === 'light' ? 'light' : 'dark')
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
-      {OPTIONS.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          role="radio"
-          aria-checked={value === opt.value}
-          className={value === opt.value ? 'active' : ''}
-          onClick={() => onSelect(opt.value)}
-        >
-          <i className={`seg-icon fa-solid ${opt.icon}`} aria-hidden="true" />
-          {opt.label}
-        </button>
-      ))}
+    <div className="theme-swatch" aria-hidden="true">
+      <span className="theme-swatch-chip" style={{ background: c.bg }} />
+      <span className="theme-swatch-chip" style={{ background: c.surface }} />
+      <span className="theme-swatch-chip" style={{ background: c.surfaceAlt }} />
+      <span className="theme-swatch-accent" style={{ background: c.accent }} />
+      <span className="theme-swatch-aa" style={{ color: c.fg, background: c.bg }}>Aa</span>
     </div>
   )
 }
 
 export default function Settings({ settings, onChange, onClose }: Props): React.JSX.Element {
-  // Close on Escape.
+  const groupRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
@@ -51,10 +56,39 @@ export default function Settings({ settings, onChange, onClose }: Props): React.
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const selectedIndex = Math.max(0, THEME_LIST.findIndex((t) => t.id === settings.themeId))
+  const [focusIndex, setFocusIndex] = useState(selectedIndex)
+  const commit = (id: string): void => onChange({ themeId: id })
+
+  const moveFocus = (next: number): void => {
+    setFocusIndex(next)
+    const cards = groupRef.current?.querySelectorAll<HTMLElement>('[data-theme-card]')
+    cards?.[next]?.focus()
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent, index: number): void => {
+    const n = THEME_LIST.length
+    let next = -1
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (index + 1) % n
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (index - 1 + n) % n
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = n - 1
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      commit(THEME_LIST[index].id)
+      return
+    }
+
+    if (next >= 0) {
+      e.preventDefault()
+      moveFocus(next)
+    }
+  }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal"
+        className="modal settings-modal"
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
@@ -68,27 +102,35 @@ export default function Settings({ settings, onChange, onClose }: Props): React.
         </header>
         <div className="modal-body">
           <div className="section-label">Theme</div>
-          <div className="setting-row">
-            <div className="setting-text">
-              <span className="setting-name">Chrome</span>
-              <span className="setting-hint">Sidebar, search, and navigation</span>
-            </div>
-            <Segmented
-              label="Chrome theme"
-              value={settings.chrome}
-              onSelect={(v) => onChange({ ...settings, chrome: v })}
-            />
-          </div>
-          <div className="setting-row">
-            <div className="setting-text">
-              <span className="setting-name">Document</span>
-              <span className="setting-hint">The reading area</span>
-            </div>
-            <Segmented
-              label="Document theme"
-              value={settings.document}
-              onSelect={(v) => onChange({ ...settings, document: v })}
-            />
+          <p className="section-hint">Applies to the whole app. Override per project in Manage Projects.</p>
+          <div className="theme-gallery" role="radiogroup" aria-label="Theme" ref={groupRef}>
+            {THEME_LIST.map((theme, index) => {
+              const selected = theme.id === settings.themeId
+              const label = theme.id === 'default' ? 'Default — mixed' : theme.name
+              return (
+                <button
+                  key={theme.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={`${theme.name} (${selected ? 'selected' : 'not selected'})`}
+                  data-theme-card
+                  data-theme-id={theme.id}
+                  className={`theme-card${selected ? ' is-selected' : ''}${index === focusIndex ? ' is-focused' : ''}`}
+                  tabIndex={index === focusIndex ? 0 : -1}
+                  title={theme.id === 'default' ? DEFAULT_TOOLTIP : undefined}
+                  onClick={() => commit(theme.id)}
+                  onKeyDown={(e) => onKeyDown(e, index)}
+                >
+                  <Swatch theme={theme} />
+                  <span className="theme-card-name">
+                    {label}
+                    {selected && <i className="fa-solid fa-check theme-card-check" aria-hidden="true" />}
+                  </span>
+                  <span className="theme-card-desc">{DESCRIPTORS[theme.id] ?? ''}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
         <footer className="modal-footer">

@@ -50,7 +50,7 @@ interface ProjectBase {
   name: string // editable display label
   addedAt: string // ISO timestamp
   status: ProjectStatus
-  themeId?: ThemeChoice // per-project document-theme override; absent = use global
+  themeId?: string // per-project theme id (registry id; absent = use global). Plan 5 widened from ThemeChoice.
 }
 
 export interface LocalProject extends ProjectBase {
@@ -129,7 +129,7 @@ export interface IpcApi {
   removeProject(id: string): Promise<void>
   updateProjectSettings(
     id: string,
-    patch: { name?: string; docsSubpath?: string; themeId?: ThemeChoice }
+    patch: { name?: string; docsSubpath?: string; themeId?: string }
   ): Promise<Project>
   rebuildProject(id: string): Promise<void> // "Pull latest" (github) / "Reindex" (local)
   setDocsSubpath(id: string, subpath: string): Promise<{ tree: NavNode[]; docCount: number }>

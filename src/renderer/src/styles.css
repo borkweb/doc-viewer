@@ -490,6 +490,45 @@ body {
 .segmented button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 .segmented button .seg-icon { font-size: 11px; }
 
+/* ── Settings theme gallery (Plan 5) ─────────────────────────────────────── */
+.settings-modal { width: min(520px, 92vw); }
+.modal .section-hint { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+
+.theme-gallery {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+.theme-card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); text-align: left; cursor: pointer;
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+.theme-card:hover { background: var(--surface-alt); border-color: var(--border-strong); }
+.theme-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+.theme-card.is-selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+.theme-card-name {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--text-base); font-weight: var(--weight-medium);
+}
+.theme-card.is-selected .theme-card-name { color: var(--accent); }
+.theme-card-check { font-size: 12px; margin-left: auto; }
+.theme-card-desc { font-size: var(--text-sm); color: var(--muted); }
+
+.theme-swatch {
+  display: flex; align-items: stretch; height: 40px; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); position: relative;
+}
+.theme-swatch-chip { flex: 1 1 0; }
+.theme-swatch-divider { width: 1px; background: var(--border-strong); flex: 0 0 auto; }
+.theme-swatch-accent { flex: 0 0 18%; }
+.theme-swatch-aa {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; font-weight: var(--weight-semibold); line-height: 1;
+  padding: 1px 4px; border-radius: 2px;
+}
+
 /* ── Add-project modal (Plan 2b) ─────────────────────────────────────────── */
 .add-modal { width: 460px; }
 .add-tabs { display: flex; gap: var(--space-2); padding: 0 var(--space-4) var(--space-3); }
@@ -639,11 +678,18 @@ body {
   padding: 8px 10px; border-radius: var(--radius-sm);
   border: 1px solid var(--border); background: var(--surface); color: var(--fg); font: inherit;
 }
+.theme-field-row { display: flex; align-items: center; gap: var(--space-2); }
+.theme-field-row select { flex: 1 1 auto; }
+.project-theme-chip {
+  display: inline-flex; align-items: stretch; width: 28px; height: 16px; flex: 0 0 auto;
+  overflow: hidden; border: 1px solid var(--border); border-radius: 2px;
+}
+.project-theme-chip-band { flex: 1 1 0; }
 .edit-project-modal .edit-actions {
   display: flex; justify-content: flex-end; gap: var(--space-2);
   padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .project-item, .project-name { transition: none; }
+  .project-item, .project-name, .theme-card { transition: none; }
 }

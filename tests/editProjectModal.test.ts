@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import EditProjectModal, {
   type EditProjectModalProps
 } from '../src/renderer/src/components/EditProjectModal'
-import type { Project, ThemeChoice } from '../src/shared/types'
+import type { Project } from '../src/shared/types'
 
 let container: HTMLDivElement
 let root: Root
@@ -88,7 +88,7 @@ const $subpath = (): HTMLInputElement => container.querySelector('[data-field="d
 const $save = (): HTMLButtonElement => container.querySelector('[data-action="save"]') as HTMLButtonElement
 
 describe('EditProjectModal', () => {
-  it('seeds fields from the project and maps an absent theme to Global', async () => {
+  it('seeds fields from the project and maps an absent theme to Use global', async () => {
     await renderModal(propsWith(githubProject({ themeId: undefined })))
     expect($name().value).toBe('Repo Docs')
     expect($theme().value).toBe('')
@@ -114,10 +114,10 @@ describe('EditProjectModal', () => {
 
   it('does not emit a rename or theme update when nothing changed', async () => {
     const renames: string[] = []
-    const themes: Array<ThemeChoice | undefined> = []
+    const themes: Array<string | undefined> = []
     let closed = 0
     await renderModal(
-      propsWith(localProject({ themeId: 'dark' }), {
+      propsWith(localProject({ themeId: 'sepia' }), {
         onRename: (id) => renames.push(id),
         onSetTheme: (_id, theme) => themes.push(theme),
         onClose: () => { closed += 1 }
@@ -131,8 +131,8 @@ describe('EditProjectModal', () => {
     expect(closed).toBe(1)
   })
 
-  it('maps the Global theme option to an undefined project theme', async () => {
-    const themes: Array<[string, ThemeChoice | undefined]> = []
+  it('maps the Use global theme option to an undefined project theme', async () => {
+    const themes: Array<[string, string | undefined]> = []
     await renderModal(
       propsWith(localProject({ themeId: 'dark' }), {
         onSetTheme: (id, theme) => themes.push([id, theme])
@@ -143,6 +143,20 @@ describe('EditProjectModal', () => {
     await click($save())
 
     expect(themes).toEqual([['local-1', undefined]])
+  })
+
+  it('emits undefined on Save for a legacy themeId seed (migration on save)', async () => {
+    const calls: Array<[string, string | undefined]> = []
+    await renderModal(
+      propsWith(localProject({ themeId: 'dark' }), {
+        onSetTheme: (id, theme) => calls.push([id, theme])
+      })
+    )
+
+    expect($theme().value).toBe('')
+    await click($save())
+
+    expect(calls).toEqual([['local-1', undefined]])
   })
 
   it('rebuilds on a changed docs subpath and closes on success', async () => {
