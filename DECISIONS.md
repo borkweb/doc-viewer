@@ -140,4 +140,15 @@ Adopted must-fix bugs (deep review — folded into the plan):
 - **MF4** — Launch-flash regression: the theme-apply effect must be `useLayoutEffect` (not `useEffect`) so `data-theme` + overrides are written before first paint (else the document pane flashes dark for one frame under Default).
 - Nice-to-haves folded: comment pinning `BASE_SWATCH` to the styles.css source; `BUILTIN_THEME_IDS` cross-ref comment in ipc.ts.
 
-_Build verdict appends below when it lands._
+**Build & verdict (Codex offload, architect-judged 2026-06-15):** implementation offloaded to a Codex builder, tasks T1-T5 (5 slice-pure commits, keep-green `Region*` strategy). Architect re-ran every frozen gate RAW: `bun test` 208 pass / 0 fail, `bun run typecheck` exit 0, `bunx electron-vite build` exit 0; spot-checked the council invariants in code: MF4 `useLayoutEffect` apply on `appShellRef`+`mainRef` with override clearing (`removeProperty` over the whitelist), D5-13 gallery roving-focus (arrows only `moveFocus`, Enter/Space commit, `aria-checked` on the selected theme), Graphite `GRAPHITE_DARK` has zero `--accent` overrides, and the `THEMEABLE_TOKENS` whitelist is enforced at module load. Disagreements D0-1 (T1/T2 freeze split) / D0-2 (sequential not concurrent lanes) / D0-3 (strengthened a variant-fallback test that wasn't exercising fallback) / D0-4 (followed the committed pinned-Default design over a loose "OS-following" handoff phrase) all ACCEPTED. **Verdict: ACCEPT.** Merged to `main` (42e91cb) and pushed.
+
+---
+
+## Roadmap complete
+
+All three roadmap plans shipped to `main`, every decision resolved by dual council (Claude `/bork:council` + Codex) and documented above:
+- **Plan 3** — Manage Projects view (115/0) · merged 4b5d7d5
+- **Plan 4** — file-watch / session memory / command palette (166/0) · merged db8175f
+- **Plan 5** — theming editor / preset theme library (208/0) · merged 42e91cb
+
+Process: scope → dual-council decisions → (design-review where design-bearing, dual-council) → spec → implementation plan → deep-review (dual-council) → Codex build (architect/builder offload) → raw gate judging → merge. Deferred fast-follows are recorded in each plan's spec (custom theme editor + background images, palette tier-3, fuzzy highlight, per-region theme override, incremental reindex, Linux recursive watch, main-side settings store).
